@@ -739,7 +739,11 @@ def exists_in_aur_mirror(package: str) -> bool:
 
 
 def list_foreign_packages() -> dict[str, str]:
-    output = run_command(["pacman", "-Qm"], capture=True)
+    try:
+        output = run_command(["pacman", "-Qm"], capture=True, check=False)
+    except AurGitError:
+        return {}
+    
     names: dict[str, str] = {}
     for line in str(output).splitlines():
         if not line.strip():
