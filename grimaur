@@ -24,7 +24,8 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
+from typing import Any
+from collections.abc import Iterable, Sequence
 
 AUR_REMOTE = "https://github.com/archlinux/aur.git"
 OFFICIAL_AUR_GIT_BASE = "https://aur.archlinux.org"
@@ -43,10 +44,10 @@ DIM = "\033[2m"
 USE_COLOR = False
 USE_AUR_RPC = False
 FORCE_GIT_MIRROR = False
-_INSTALLED_CACHE: Optional[Set[str]] = None
-_PROVIDES_CACHE: dict[str, Optional[Set[str]]] = {}
-_VIRTUAL_PROVIDER_CACHE: dict[str, Optional[str]] = {}
-_AUR_INFO_CACHE: dict[str, Optional[dict]] = {}
+_INSTALLED_CACHE: set[str] | None = None
+_PROVIDES_CACHE: dict[str, set[str] | None] = {}
+_VIRTUAL_PROVIDER_CACHE: dict[str, str | None] = {}
+_AUR_INFO_CACHE: dict[str, dict | None] = {}
 _RPC_FALLBACK_NOTIFIED = False
 
 _COMMON_AUR_SUFFIXES = ("-bin",)
@@ -99,38 +100,38 @@ class AurGitError(RuntimeError):
 
 @dataclass(frozen=True)
 class DependencySet:
-    depends: Set[str]
-    makedepends: Set[str]
-    checkdepends: Set[str]
-    optdepends: Set[str]
+    depends: set[str]
+    makedepends: set[str]
+    checkdepends: set[str]
+    optdepends: set[str]
 
     @property
-    def all_build_deps(self) -> Set[str]:
+    def all_build_deps(self) -> set[str]:
         return self.depends | self.makedepends
 
 
 @dataclass(frozen=True)
 class SearchResult:
     name: str
-    version: Optional[str]
-    description: Optional[str]
+    version: str | None
+    description: str | None
     installed: bool
     score: int
-    votes: Optional[int] = None
-    is_orphan: Optional[bool] = None
+    votes: int | None = None
+    is_orphan: bool | None = None
 
 
 @dataclass(frozen=True)
 class UpdateCandidate:
     name: str
-    installed_version: Optional[str]
-    target_version: Optional[str]
-    remote_head: Optional[str]
-    local_head: Optional[str]
+    installed_version: str | None
+    target_version: str | None
+    remote_head: str | None
+    local_head: str | None
 
 
-def aur_rpc_call(params: Dict[str, Any]) -> Dict[str, Any]:
-    query_params: Dict[str, Any] = {"v": "5"}
+def aur_rpc_call(params: dict[str, Any]) -> dict[str, Any]:
+    query_params: dict[str, Any] = {"v": "5"}
     query_params.update(params)
     query = urllib.parse.urlencode(query_params, doseq=True)
     url = f"{AUR_RPC_ENDPOINT}?{query}"
@@ -157,7 +158,7 @@ def aur_rpc_call(params: Dict[str, Any]) -> Dict[str, Any]:
     return data
 
 
-def aur_rpc_info(package: str) -> Optional[dict]:
+def aur_rpc_info(package: str) -> dict | None:
     if package in _AUR_INFO_CACHE:
         return _AUR_INFO_CACHE[package]
     try:
@@ -166,7 +167,7 @@ def aur_rpc_info(package: str) -> Optional[dict]:
         _AUR_INFO_CACHE[package] = None
         return None
     results = data.get("results")
-    match: Optional[dict] = None
+    match: dict | None = None
     if isinstance(results, list):
         for entry in results:
             if isinstance(entry, dict) and entry.get("Name") == package:
@@ -182,8 +183,8 @@ def aur_rpc_info(package: str) -> Optional[dict]:
 
 
 def dependency_set_from_rpc(info: dict) -> DependencySet:
-    def gather(key: str, normalize: bool = True) -> Set[str]:
-        values: Set[str] = set()
+    def gather(key: str, normalize: bool = True) -> set[str]:
+        values: set[str] = set()
         items = info.get(key)
         if not isinstance(items, list):
             return values
@@ -202,7 +203,7 @@ def dependency_set_from_rpc(info: dict) -> DependencySet:
     return DependencySet(depends, makedepends, checkdepends, optdepends)
 
 
-def aur_rpc_search_results(pattern: str) -> List[dict]:
+def aur_rpc_search_results(pattern: str) -> list[dict]:
     try:
         data = aur_rpc_call({"type": "search", "arg": pattern})
     except AurGitError:
@@ -213,7 +214,7 @@ def aur_rpc_search_results(pattern: str) -> List[dict]:
     return [entry for entry in results if isinstance(entry, dict)]
 
 
-def aur_rpc_suggest(prefix: str) -> List[str]:
+def aur_rpc_suggest(prefix: str) -> list[str]:
     try:
         data = aur_rpc_call({"type": "suggest", "arg": prefix})
     except AurGitError:
@@ -221,7 +222,7 @@ def aur_rpc_suggest(prefix: str) -> List[str]:
     results = data.get("results")
     if not isinstance(results, list):
         return []
-    suggestions: List[str] = []
+    suggestions: list[str] = []
     for entry in results:
         if isinstance(entry, str):
             suggestions.append(entry)
@@ -231,10 +232,10 @@ def aur_rpc_suggest(prefix: str) -> List[str]:
 def run_command(
     cmd: Sequence[str],
     *,
-    cwd: Optional[Path] = None,
+    cwd: Path | None = None,
     capture: bool = False,
     check: bool = True,
-    env: Optional[dict] = None,
+    env: dict | None = None,
 ) -> subprocess.CompletedProcess | str:
     """Run a command, optionally capturing stdout, and surface errors nicely."""
     try:
@@ -354,10 +355,10 @@ _SRCINFO_KEYS = {"depends", "makedepends", "checkdepends", "optdepends", "pkgnam
 def parse_dependencies(srcinfo_content: str) -> tuple[str, str | None, DependencySet]:
     pkgbase = ""
     pkgdesc = None
-    depends: Set[str] = set()
-    makedepends: Set[str] = set()
-    checkdepends: Set[str] = set()
-    optdepends: Set[str] = set()
+    depends: set[str] = set()
+    makedepends: set[str] = set()
+    checkdepends: set[str] = set()
+    optdepends: set[str] = set()
 
     for raw_line in srcinfo_content.splitlines():
         line = raw_line.strip()
@@ -401,10 +402,10 @@ def _normalize_dep(dep_entry: str) -> str:
     return dep_entry.strip()
 
 
-def _pkgbase_guesses(dep: str) -> List[str]:
+def _pkgbase_guesses(dep: str) -> list[str]:
     """Return possible pkgbase names for split packages sharing a prefix."""
     parts = dep.split("-")
-    guesses: List[str] = []
+    guesses: list[str] = []
     # Walk backwards dropping the last segment each time (foo-bar-baz -> foo-bar, foo)
     for index in range(len(parts) - 1, 0, -1):
         candidate = "-".join(parts[:index])
@@ -413,7 +414,7 @@ def _pkgbase_guesses(dep: str) -> List[str]:
     return guesses
 
 
-def _parse_srcinfo_metadata(srcinfo_content: str) -> tuple[Optional[str], Optional[str]]:
+def _parse_srcinfo_metadata(srcinfo_content: str) -> tuple[str | None, str | None]:
     pkgver = None
     pkgrel = None
     epoch = None
@@ -432,7 +433,7 @@ def _parse_srcinfo_metadata(srcinfo_content: str) -> tuple[Optional[str], Option
         elif key == "pkgdesc" and not description:
             description = value
     if pkgver or pkgrel or epoch:
-        version_parts: List[str] = []
+        version_parts: list[str] = []
         if epoch and epoch not in {"", "0"}:
             version_parts.append(f"{epoch}:")
         if pkgver:
@@ -475,9 +476,9 @@ def _reset_git_worktree(package_dir: Path, refs: Sequence[str]) -> None:
 def compute_match_score(
     name: str,
     *,
-    regex: Optional[re.Pattern],
-    needle: Optional[str],
-) -> Optional[int]:
+    regex: re.Pattern | None,
+    needle: str | None,
+) -> int | None:
     if regex is not None:
         match = regex.search(name)
         if not match:
@@ -515,7 +516,7 @@ def invalidate_installed_cache() -> None:
     _INSTALLED_CACHE = None
 
 
-def installed_package_set() -> Set[str]:
+def installed_package_set() -> set[str]:
     global _INSTALLED_CACHE
     if _INSTALLED_CACHE is None:
         output = run_command(["pacman", "-Qq"], capture=True)
@@ -544,11 +545,11 @@ def is_dependency_satisfied(dep: str) -> bool:
     return proc.returncode == 0
 
 
-def package_provides(package: str) -> Optional[Set[str]]:
+def package_provides(package: str) -> set[str] | None:
     if package in _PROVIDES_CACHE:
         return _PROVIDES_CACHE[package]
-    provides: Set[str] = set()
-    info: Optional[dict] = None
+    provides: set[str] = set()
+    info: dict | None = None
     if USE_AUR_RPC:
         info = aur_rpc_info(package)
         if info:
@@ -590,7 +591,7 @@ def package_provides(package: str) -> Optional[Set[str]]:
     return provides
 
 
-def _search_aur_candidates(dep: str, *, limit: int = 25) -> List[str]:
+def _search_aur_candidates(dep: str, *, limit: int = 25) -> list[str]:
     if USE_AUR_RPC:
         results = _search_aur_candidates_rpc(dep, limit=limit)
         if results or USE_AUR_RPC:
@@ -602,8 +603,8 @@ def _search_aur_candidates(dep: str, *, limit: int = 25) -> List[str]:
     ]
     if len(dep) >= 3:
         patterns.append(f"refs/heads/*{dep}*")
-    seen: Set[str] = set()
-    results: List[str] = []
+    seen: set[str] = set()
+    results: list[str] = []
     for pattern in patterns:
         try:
             output = run_command(
@@ -627,10 +628,10 @@ def _search_aur_candidates(dep: str, *, limit: int = 25) -> List[str]:
     return results
 
 
-def _search_aur_candidates_rpc(dep: str, *, limit: int) -> List[str]:
+def _search_aur_candidates_rpc(dep: str, *, limit: int) -> list[str]:
     results = aur_rpc_search_results(dep)
-    seen: Set[str] = set()
-    names: List[str] = []
+    seen: set[str] = set()
+    names: list[str] = []
     for entry in results:
         for key in ("Name", "PackageBase"):
             value = entry.get(key)
@@ -645,14 +646,14 @@ def _search_aur_candidates_rpc(dep: str, *, limit: int) -> List[str]:
     return names
 
 
-def resolve_aur_dependency(dep: str) -> Optional[str]:
+def resolve_aur_dependency(dep: str) -> str | None:
     if dep in _VIRTUAL_PROVIDER_CACHE:
         return _VIRTUAL_PROVIDER_CACHE[dep]
     if exists_in_aur_mirror(dep):
         _VIRTUAL_PROVIDER_CACHE[dep] = dep
         return dep
-    candidates: List[str] = []
-    seen: Set[str] = set()
+    candidates: list[str] = []
+    seen: set[str] = set()
 
     def add_candidate(name: str) -> None:
         if not name or name in seen:
@@ -673,7 +674,7 @@ def resolve_aur_dependency(dep: str) -> Optional[str]:
             _VIRTUAL_PROVIDER_CACHE[dep] = candidate
             return candidate
     search_terms = [dep, *(_pkgbase_guesses(dep))]
-    seen_search: Set[str] = set()
+    seen_search: set[str] = set()
     for term in search_terms:
         if term in seen_search:
             continue
@@ -692,7 +693,7 @@ def resolve_aur_dependency(dep: str) -> Optional[str]:
     return None
 
 
-def resolve_official_dependency(dep: str) -> Optional[str]:
+def resolve_official_dependency(dep: str) -> str | None:
     """Return the repo package that satisfies dep, accounting for providers."""
     if exists_in_sync_repo(dep):
         return dep
@@ -738,7 +739,11 @@ def exists_in_aur_mirror(package: str) -> bool:
 
 
 def list_foreign_packages() -> dict[str, str]:
-    output = run_command(["pacman", "-Qm"], capture=True)
+    try:
+        output = run_command(["pacman", "-Qm"], capture=True, check=False)
+    except AurGitError:
+        return {}
+    
     names: dict[str, str] = {}
     for line in str(output).splitlines():
         if not line.strip():
@@ -751,7 +756,7 @@ def list_foreign_packages() -> dict[str, str]:
     return names
 
 
-def get_local_head(package_dir: Path) -> Optional[str]:
+def get_local_head(package_dir: Path) -> str | None:
     if not (package_dir / ".git").is_dir():
         return None
     try:
@@ -761,7 +766,7 @@ def get_local_head(package_dir: Path) -> Optional[str]:
     return str(output).strip() or None
 
 
-def get_remote_head(package: str) -> Optional[str]:
+def get_remote_head(package: str) -> str | None:
     try:
         if USE_AUR_RPC:
             output = run_command(
@@ -796,7 +801,7 @@ def get_remote_head(package: str) -> Optional[str]:
     return None
 
 
-def get_installed_version(package: str) -> Optional[str]:
+def get_installed_version(package: str) -> str | None:
     try:
         output = run_command(["pacman", "-Qi", package], capture=True)
     except AurGitError:
@@ -808,7 +813,21 @@ def get_installed_version(package: str) -> Optional[str]:
     return None
 
 
-def fetch_git_file(package: str, path: str) -> Optional[str]:
+def list_installed_packages() -> None:
+    """List all installed foreign (AUR) packages."""
+    foreign = list_foreign_packages()
+    
+    if not foreign:
+        print("No foreign packages installed")
+        return
+    
+    print(style(f"Installed foreign packages ({len(foreign)}):", CYAN))
+    
+    for name in sorted(foreign.keys()):
+        version = foreign[name]
+        print(f"  {style(name, BOLD)} {style(version, GREEN)}")
+
+def fetch_git_file(package: str, path: str) -> str | None:
     safe_package = urllib.parse.quote(package)
     safe_path = path.lstrip("/")
     if USE_AUR_RPC:
@@ -828,7 +847,7 @@ def fetch_git_file(package: str, path: str) -> Optional[str]:
         return None
 
 
-def git_srcinfo_metadata(package: str) -> Optional[tuple[str, Optional[str]]]:
+def git_srcinfo_metadata(package: str) -> tuple[str, str | None] | None:
     if USE_AUR_RPC:
         info = aur_rpc_info(package)
         if not info:
@@ -836,13 +855,16 @@ def git_srcinfo_metadata(package: str) -> Optional[tuple[str, Optional[str]]]:
         version = info.get("Version")
         description = info.get("Description")
         if isinstance(version, str) or isinstance(description, str):
-            return (version if isinstance(version, str) else None, description if isinstance(description, str) else None)
+            version_result = version if isinstance(version, str) else None
+            description_result = description if isinstance(description, str) else None
+            if version_result is not None:  # Only return if version is valid
+                return (version_result, description_result)
         # fallback to raw .SRCINFO if fields missing
     srcinfo = fetch_git_file(package, ".SRCINFO")
     if not srcinfo:
         return None
     version, description = _parse_srcinfo_metadata(srcinfo)
-    if not version and not description:
+    if not version:  # Changed: only check version since it's required
         return None
     return version, description
 
@@ -851,7 +873,7 @@ def install_official_packages(packages: Iterable[str], *, noconfirm: bool) -> No
     pkgs = sorted(set(packages))
     if not pkgs:
         return
-    cmd: List[str] = ["pacman", "-S", "--needed"]
+    cmd: list[str] = ["pacman", "-S", "--needed"]
     if noconfirm:
         cmd.append("--noconfirm")
     cmd.extend(pkgs)
@@ -867,16 +889,16 @@ def collect_missing_official_packages(
     dest_root: Path,
     *,
     refresh: bool,
-    visited: Optional[Set[str]] = None,
-) -> tuple[Set[str], Set[str]]:
+    visited: set[str] | None = None,
+) -> tuple[set[str], set[str]]:
     """Return official packages missing for the dependency tree rooted at package."""
     visited = visited or set()
     if package in visited:
         return set(), set()
     visited.add(package)
 
-    info: Optional[dict] = None
-    deps: Optional[DependencySet] = None
+    info: dict | None = None
+    deps: DependencySet | None = None
     if USE_AUR_RPC:
         info = aur_rpc_info(package)
         if info:
@@ -886,8 +908,8 @@ def collect_missing_official_packages(
         srcinfo = read_srcinfo(package_dir)
         _, _, deps = parse_dependencies(srcinfo)
 
-    missing_official: Set[str] = set()
-    unresolved: Set[str] = set()
+    missing_official: set[str] = set()
+    unresolved: set[str] = set()
 
     for dep in sorted(deps.all_build_deps):
         if dep == package:
@@ -936,19 +958,26 @@ def install_package(
     *,
     refresh: bool,
     noconfirm: bool,
-    visited: Optional[Set[str]] = None,
-    preinstalled_official: Optional[Set[str]] = None,
+    visited: set[str] | None = None,
+    preinstalled_official: set[str] | None = None,
 ) -> None:
     visited = visited or set()
     if package in visited:
         return
     visited.add(package)
 
+    if is_installed(package):
+        installed_ver = get_installed_version(package)
+        print(f"Package {style(package, BOLD)} is already installed ({installed_ver})")
+        if not noconfirm and not prompt_confirm(style("Reinstall? [y/N]: ", YELLOW)):
+            print("Cancelled installation.")
+            return
+
     if preinstalled_official is None:
         preinstalled_official = set()
 
-    package_dir: Optional[Path] = None
-    info: Optional[dict] = None
+    package_dir: Path | None = None
+    info: dict | None = None
     if USE_AUR_RPC:
         info = aur_rpc_info(package)
         if info is None and USE_AUR_RPC:
@@ -965,10 +994,10 @@ def install_package(
     else:
         print(f"==> {package}")
 
-    missing_official: Set[str] = set()
-    aur_dependencies: Set[str] = set()
-    unresolved: Set[str] = set()
-    virtual_providers: dict[str, Set[str]] = {}
+    missing_official: set[str] = set()
+    aur_dependencies: set[str] = set()
+    unresolved: set[str] = set()
+    virtual_providers: dict[str, set[str]] = {}
     for dep in sorted(deps.all_build_deps):
         if dep == package:
             continue
@@ -1026,18 +1055,102 @@ def install_package(
 
     build_and_install(package_dir, noconfirm=noconfirm)
 
+def remove_package(
+    package: str,
+    dest_root: Path,
+    *,
+    noconfirm: bool,
+    remove_cache: bool,
+) -> None:
+    # Check if package is installed
+    if not is_installed(package):
+        print(f"Package {style(package, BOLD)} is not installed")
+        return
+    
+    # Remove with pacman -Rns
+    cmd: list[str] = ["pacman", "-Rns", package]
+    if noconfirm:
+        cmd.append("--noconfirm")
+    
+    if os.geteuid() != 0:
+        cmd.insert(0, "sudo")
+    
+    print(f"Removing package {style(package, BOLD)}")
+    try:
+        run_command(cmd)
+        invalidate_installed_cache()
+        print(f"Successfully removed {style(package, GREEN)}")
+    except AurGitError as exc:
+        print(f"Failed to remove package: {exc}", file=sys.stderr)
+        return
+    
+    # Optionally remove cached directory
+    if remove_cache:
+        package_dir = dest_root / package
+        if package_dir.exists():
+            print(f"Removing cached directory {package_dir}")
+            shutil.rmtree(package_dir)
+            print(f"Removed cache for {style(package, GREEN)}")
+        else:
+            print(f"No cache found at {package_dir}")
+
+def get_ignored_packages() -> set[str]:
+    ignored: set[str] = set()
+    pacman_conf = Path("/etc/pacman.conf")
+    
+    if not pacman_conf.exists():
+        return ignored
+
+    content = pacman_conf.read_text()
+    
+    for line in content.splitlines():
+        line = line.strip()
+        
+        # Skip comments and empty lines
+        if not line or line.startswith("#"):
+            continue
+        
+        # Look for IgnorePkg lines
+        if line.startswith("IgnorePkg"):
+            # Format: IgnorePkg = pkg1 pkg2 pkg3
+            if "=" in line:
+                _, packages = line.split("=", 1)
+                for pkg in packages.split():
+                    ignored.add(pkg.strip())
+    
+    return ignored
 
 def update_packages(
     dest_root: Path,
     *,
     refresh: bool,
     noconfirm: bool,
+    update_system: bool,
     include_devel: bool,
-    targets: Optional[Sequence[str]] = None,
+    targets: Sequence[str] | None = None,
 ) -> None:
-    candidates: List[tuple[str, Optional[str]]]
+    ignored = get_ignored_packages()
+
+    if update_system:
+        cmd: list[str] = ["pacman", "-Syu"]
+        if noconfirm:
+            cmd.append("--noconfirm")
+        
+        if os.geteuid() != 0:
+            cmd.insert(0, "sudo")
+        
+        print(style("Updating system packages first...", CYAN))
+        try:
+            run_command(cmd)
+            invalidate_installed_cache()
+        except AurGitError as exc:
+            print(f"System update failed: {exc}", file=sys.stderr)
+            if not noconfirm and not prompt_confirm(style("Continue with AUR updates? [y/N]: ", YELLOW)):
+                return
+
+    candidates: list[tuple[str, str | None]]
     if targets:
-        seen: Set[str] = set()
+        seen: set[str] = set()
         candidates = []
         for pkg in targets:
             if pkg in seen:
@@ -1051,19 +1164,23 @@ def update_packages(
             return
         candidates = list(foreign.items())
 
-    missing: List[str] = []
-    pending_updates: List[UpdateCandidate] = []
+    missing: list[str] = []
+    pending_updates: list[UpdateCandidate] = []
     skip_devel = not include_devel and not targets
 
     for package, installed_version in candidates:
         if is_debug_package(package):
             continue
+        # Skip ignored packages
+        if package in ignored:
+            print(f"Skipping {package} (in IgnorePkg)", file=sys.stderr)
+            continue
         if skip_devel and is_vcs_package(package):
             continue
 
-        remote_version: Optional[str] = None
-        remote_head: Optional[str] = None
-        local_head: Optional[str] = None
+        remote_version: str | None = None
+        remote_head: str | None = None
+        local_head: str | None = None
 
         meta = git_srcinfo_metadata(package)
         if meta:
@@ -1126,8 +1243,8 @@ def update_packages(
     else:
         selected_candidates = pending_updates
 
-    shared_visited: Set[str] = set()
-    shared_preinstalled_official: Set[str] = set()
+    shared_visited: set[str] = set()
+    shared_preinstalled_official: set[str] = set()
     for candidate in selected_candidates:
         try:
             install_package(
@@ -1151,10 +1268,10 @@ def update_packages(
 def search_packages(
     pattern: str,
     *,
-    regex: Optional[re.Pattern],
-    needle: Optional[str],
-    limit: Optional[int],
-) -> List[SearchResult]:
+    regex: re.Pattern | None,
+    needle: str | None,
+    limit: int | None,
+) -> list[SearchResult]:
     if USE_AUR_RPC:
         results = search_packages_rpc(
             pattern,
@@ -1175,12 +1292,12 @@ def search_packages(
 def search_packages_git(
     pattern: str,
     *,
-    regex: Optional[re.Pattern],
-    needle: Optional[str],
-    limit: Optional[int],
-) -> List[SearchResult]:
+    regex: re.Pattern | None,
+    needle: str | None,
+    limit: int | None,
+) -> list[SearchResult]:
     output = run_command(["git", "ls-remote", "--heads", AUR_REMOTE], capture=True)
-    candidates: List[tuple[int, str]] = []
+    candidates: list[tuple[int, str]] = []
     for line in str(output).splitlines():
         if not line.strip():
             continue
@@ -1197,7 +1314,7 @@ def search_packages_git(
     if limit is not None and limit >= 0:
         candidates = candidates[:limit]
     installed_set = installed_package_set()
-    results: List[SearchResult] = []
+    results: list[SearchResult] = []
     for score, package in candidates:
         version = None
         description = None
@@ -1219,12 +1336,12 @@ def search_packages_git(
 def search_packages_rpc(
     pattern: str,
     *,
-    regex: Optional[re.Pattern],
-    needle: Optional[str],
-    limit: Optional[int],
-) -> List[SearchResult]:
+    regex: re.Pattern | None,
+    needle: str | None,
+    limit: int | None,
+) -> list[SearchResult]:
     raw_results = aur_rpc_search_results(pattern)
-    candidates: List[tuple[int, dict]] = []
+    candidates: list[tuple[int, dict]] = []
     for entry in raw_results:
         name = entry.get("Name")
         if not isinstance(name, str):
@@ -1237,7 +1354,7 @@ def search_packages_rpc(
     if limit is not None and limit >= 0:
         candidates = candidates[:limit]
     installed_set = installed_package_set()
-    results: List[SearchResult] = []
+    results: list[SearchResult] = []
     for score, entry in candidates:
         name_value = entry.get("Name")
         if not isinstance(name_value, str):
@@ -1267,20 +1384,20 @@ def search_packages_rpc(
     return results
 
 
-def order_search_results(results: Sequence[SearchResult]) -> List[SearchResult]:
+def order_search_results(results: Sequence[SearchResult]) -> list[SearchResult]:
     # Lower score = better match; return ascending order (best last when reversed later).
     return sorted(results, key=lambda result: (result.score, result.name))
 
 
-def format_search_result(index: int, result: SearchResult) -> List[str]:
+def format_search_result(index: int, result: SearchResult) -> list[str]:
     index_label = style(f"{index:>2})", CYAN)
-    main_parts: List[str] = [style(result.name, BOLD)]
+    main_parts: list[str] = [style(result.name, BOLD)]
     if result.version:
         main_parts.append(style(result.version, GREEN))
     if result.installed:
         main_parts.append(style("[installed]", GREEN))
     if USE_AUR_RPC:
-        meta_bits: List[str] = ["aur rpc"]
+        meta_bits: list[str] = ["aur rpc"]
         if result.votes is not None:
             meta_bits.append(f"{result.votes} votes")
         if result.is_orphan:
@@ -1304,7 +1421,7 @@ def print_search_results(results: Sequence[SearchResult]) -> None:
             print(line)
 
 
-def format_update_candidate(index: int, candidate: UpdateCandidate) -> List[str]:
+def format_update_candidate(index: int, candidate: UpdateCandidate) -> list[str]:
     index_label = style(f"{index:>2})", CYAN)
     name_part = style(candidate.name, BOLD)
     current_version = candidate.installed_version or "?"
@@ -1315,7 +1432,7 @@ def format_update_candidate(index: int, candidate: UpdateCandidate) -> List[str]
     else:
         target_label = "unknown"
     change = f"{current_version} -> {target_label}"
-    meta_bits: List[str] = []
+    meta_bits: list[str] = []
     if candidate.remote_head and not candidate.target_version:
         meta_bits.append("git commit")
     line = f"{index_label} {name_part} {style(change, GREEN)}"
@@ -1324,7 +1441,7 @@ def format_update_candidate(index: int, candidate: UpdateCandidate) -> List[str]
     return [line]
 
 
-def interactive_select_updates(candidates: Sequence[UpdateCandidate]) -> List[UpdateCandidate]:
+def interactive_select_updates(candidates: Sequence[UpdateCandidate]) -> list[UpdateCandidate]:
     if not candidates:
         return []
     prompt_text = style(
@@ -1345,7 +1462,7 @@ def interactive_select_updates(candidates: Sequence[UpdateCandidate]) -> List[Up
             continue
         if not parsed:
             return []
-        selected: List[UpdateCandidate] = []
+        selected: list[UpdateCandidate] = []
         for value in parsed:
             index = value - 1
             if index < 0 or index >= total:
@@ -1358,7 +1475,7 @@ def interactive_select_updates(candidates: Sequence[UpdateCandidate]) -> List[Up
         return selected
 
 
-def parse_selection(selection: str, max_index: int) -> Optional[List[int]]:
+def parse_selection(selection: str, max_index: int) -> list[int] | None:
     selection = selection.strip().lower()
     if not selection:
         return []
@@ -1366,7 +1483,7 @@ def parse_selection(selection: str, max_index: int) -> Optional[List[int]]:
         return []
     if selection in {"a", "all"}:
         return list(range(1, max_index + 1))
-    chosen: Set[int] = set()
+    chosen: set[int] = set()
     tokens = re.split(r"[\s,]+", selection)
     for token in tokens:
         if not token:
@@ -1394,7 +1511,7 @@ def parse_selection(selection: str, max_index: int) -> Optional[List[int]]:
     return sorted(chosen)
 
 
-def interactive_select_results(results: Sequence[SearchResult]) -> List[SearchResult]:
+def interactive_select_results(results: Sequence[SearchResult]) -> list[SearchResult]:
     if not results:
         return []
     total = len(results)
@@ -1413,14 +1530,14 @@ def interactive_select_results(results: Sequence[SearchResult]) -> List[SearchRe
             continue
         if not parsed:
             return []
-        selected: List[SearchResult] = []
+        selected: list[SearchResult] = []
         for value in parsed:
             index = total - value
             selected.append(results[index])
         return selected
 
 
-def complete_packages(prefix: str, limit: int) -> List[str]:
+def complete_packages(prefix: str, limit: int) -> list[str]:
     if USE_AUR_RPC:
         names = complete_packages_rpc(prefix, limit)
         if names or USE_AUR_RPC:
@@ -1428,7 +1545,7 @@ def complete_packages(prefix: str, limit: int) -> List[str]:
     return complete_packages_git(prefix, limit)
 
 
-def complete_packages_git(prefix: str, limit: int) -> List[str]:
+def complete_packages_git(prefix: str, limit: int) -> list[str]:
     prefix = prefix.strip()
     if not prefix:
         return []
@@ -1440,7 +1557,7 @@ def complete_packages_git(prefix: str, limit: int) -> List[str]:
         )
     except AurGitError:
         return []
-    names: List[str] = []
+    names: list[str] = []
     for line in str(output).splitlines():
         if not line.strip():
             continue
@@ -1455,13 +1572,13 @@ def complete_packages_git(prefix: str, limit: int) -> List[str]:
     return names
 
 
-def complete_packages_rpc(prefix: str, limit: int) -> List[str]:
+def complete_packages_rpc(prefix: str, limit: int) -> list[str]:
     prefix = prefix.strip()
     if not prefix:
         return []
     suggestions = aur_rpc_suggest(prefix)
-    names: List[str] = []
-    seen: Set[str] = set()
+    names: list[str] = []
+    seen: set[str] = set()
     for suggestion in suggestions:
         if not suggestion.startswith(prefix):
             continue
@@ -1606,6 +1723,15 @@ def build_parser() -> argparse.ArgumentParser:
     install_parser.add_argument("package", help="Package name to install")
     install_parser.add_argument("--noconfirm", action="store_true", help="Pass --noconfirm to pacman/makepkg")
 
+    remove_parser = subparsers.add_parser("remove", help="Remove an installed package")
+    remove_parser.add_argument("package", help="Package name to remove")
+    remove_parser.add_argument("--noconfirm", action="store_true", help="Pass --noconfirm to pacman")
+    remove_parser.add_argument(
+        "--remove-cache",
+        action="store_true",
+        help="Also remove the cached clone from dest-root",
+    )
+
     update_parser = subparsers.add_parser(
         "update",
         help="Upgrade installed foreign packages by rebuilding them from the mirror",
@@ -1620,6 +1746,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--devel",
         action="store_true",
         help="Include VCS/devel packages (e.g. *-git) when checking for updates",
+    )
+    update_parser.add_argument(
+        "--global",
+        action="store_true",
+        help="Update official repositories with pacman -Syu before updating AUR packages",
     )
     search_parser = subparsers.add_parser("search", help="Search packages via the configured backend")
     search_parser.add_argument("pattern", help="Substring or regex to match against package names")
@@ -1655,20 +1786,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Which data to show (default: info)",
     )
     inspect_parser.add_argument(
-        "--show-build-deps",
+        "--full",
         action="store_true",
         help="Include make/check/optional dependencies when showing info",
     )
+    subparsers.add_parser("list", help="List installed foreign (AUR) packages")
 
     return parser
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     argv_list = list(argv if argv is not None else sys.argv[1:])
-    commands = {"fetch", "install", "update", "search", "inspect", "complete"}
+    commands = {"fetch", "install", "remove", "update", "search", "inspect", "complete", "list"}
     if argv_list and not argv_list[0].startswith("-") and argv_list[0] not in commands:
-        reordered: List[str] = []
-        remaining: List[str] = []
+        reordered: list[str] = []
+        remaining: list[str] = []
         i = 0
         while i < len(argv_list):
             item = argv_list[i]
@@ -1710,7 +1842,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if args.command == "fetch":
             fetch_package(args.package, dest_root, refresh=refresh, force=args.force)
         elif args.command == "install":
-            preinstalled_official: Optional[Set[str]] = None
+            preinstalled_official: set[str] | None = None
             if USE_AUR_RPC:
                 missing_official, unresolved = collect_missing_official_packages(
                     args.package,
@@ -1733,17 +1865,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 noconfirm=args.noconfirm,
                 preinstalled_official=preinstalled_official,
             )
+        elif args.command == "remove":
+            remove_package(
+                args.package,
+                dest_root,
+                noconfirm=args.noconfirm,
+                remove_cache=args.remove_cache,
+            )
         elif args.command == "update":
             update_packages(
                 dest_root,
                 refresh=True,
                 noconfirm=args.noconfirm,
                 include_devel=bool(getattr(args, "devel", False)),
+                update_system=bool(getattr(args, "global", False)),
                 targets=args.packages or None,
             )
         elif args.command == "search":
-            regex_obj: Optional[re.Pattern] = None
-            needle: Optional[str] = None
+            regex_obj: re.Pattern | None = None
+            needle: str | None = None
             if args.regex:
                 try:
                     regex_obj = re.compile(args.pattern)
@@ -1788,8 +1928,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 print(f"  {label}")
 
             exit_code = 0
-            shared_visited: Set[str] = set()
-            shared_preinstalled_official: Set[str] = set()
+            shared_visited: set[str] = set()
+            shared_preinstalled_official: set[str] = set()
             for item in selected:
                 try:
                     install_package(
@@ -1807,7 +1947,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         elif args.command == "complete":
             prefix = args.prefix
             limit = max(1, args.limit)
-            names: List[str] = []
+            names: list[str] = []
             if args.subcommand == "install":
                 names = complete_packages(prefix, limit)
             for name in names:
@@ -1819,8 +1959,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 dest_root,
                 refresh=refresh,
                 target="PKGBUILD" if args.target == "PKGBUILD" else ("SRCINFO" if args.target == "SRCINFO" else "info"),
-                show_deps=args.show_build_deps,
+                show_deps=args.full,
             )
+        elif args.command == "list":
+            list_installed_packages()
         else:
             parser.error("Unknown command")
     except AurGitError as exc:
@@ -1831,4 +1973,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("\n" + style("Interrupted by user", YELLOW), file=sys.stderr)
+        sys.exit(130)
