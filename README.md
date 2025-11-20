@@ -23,7 +23,7 @@
 - `grimaur list` to see "foreign" packages recognized by pacman
 
 ## Install Packages
-- `grimaur install <package>` clones the repo, resolves dependencies, builds with `makepkg`, and installs via `pacman` when needed.
+- `grimaur install <package>` clones the repo, resolves dependencies, builds with `makepkg`
 - Pass `--noconfirm` to skip confirmation prompts during the build/install steps.
 
 ## Stay Updated
