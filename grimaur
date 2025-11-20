@@ -1051,7 +1051,6 @@ def install_package(
     build_and_install(package_dir, noconfirm=noconfirm)
 
 def get_ignored_packages() -> Set[str]:
-    """Read IgnorePkg entries from pacman.conf."""
     ignored: Set[str] = set()
     pacman_conf = Path("/etc/pacman.conf")
     
