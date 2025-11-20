@@ -24,7 +24,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 from collections.abc import Iterable, Sequence
 
 AUR_REMOTE = "https://github.com/archlinux/aur.git"
@@ -1051,6 +1051,45 @@ def install_package(
 
     build_and_install(package_dir, noconfirm=noconfirm)
 
+def remove_package(
+    package: str,
+    dest_root: Path,
+    *,
+    noconfirm: bool,
+    remove_cache: bool,
+) -> None:
+    # Check if package is installed
+    if not is_installed(package):
+        print(f"Package {style(package, BOLD)} is not installed")
+        return
+    
+    # Remove with pacman -Rns
+    cmd: list[str] = ["pacman", "-Rns", package]
+    if noconfirm:
+        cmd.append("--noconfirm")
+    
+    if os.geteuid() != 0:
+        cmd.insert(0, "sudo")
+    
+    print(f"Removing package {style(package, BOLD)}")
+    try:
+        run_command(cmd)
+        invalidate_installed_cache()
+        print(f"Successfully removed {style(package, GREEN)}")
+    except AurGitError as exc:
+        print(f"Failed to remove package: {exc}", file=sys.stderr)
+        return
+    
+    # Optionally remove cached directory
+    if remove_cache:
+        package_dir = dest_root / package
+        if package_dir.exists():
+            print(f"Removing cached directory {package_dir}")
+            shutil.rmtree(package_dir)
+            print(f"Removed cache for {style(package, GREEN)}")
+        else:
+            print(f"No cache found at {package_dir}")
+
 def get_ignored_packages() -> set[str]:
     ignored: set[str] = set()
     pacman_conf = Path("/etc/pacman.conf")
@@ -1662,6 +1701,15 @@ def build_parser() -> argparse.ArgumentParser:
     install_parser.add_argument("package", help="Package name to install")
     install_parser.add_argument("--noconfirm", action="store_true", help="Pass --noconfirm to pacman/makepkg")
 
+    remove_parser = subparsers.add_parser("remove", help="Remove an installed package")
+    remove_parser.add_argument("package", help="Package name to remove")
+    remove_parser.add_argument("--noconfirm", action="store_true", help="Pass --noconfirm to pacman")
+    remove_parser.add_argument(
+        "--remove-cache",
+        action="store_true",
+        help="Also remove the cached clone from dest-root",
+    )
+
     update_parser = subparsers.add_parser(
         "update",
         help="Upgrade installed foreign packages by rebuilding them from the mirror",
@@ -1722,7 +1770,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     argv_list = list(argv if argv is not None else sys.argv[1:])
-    commands = {"fetch", "install", "update", "search", "inspect", "complete", "list"}
+    commands = {"fetch", "install", "remove", "update", "search", "inspect", "complete", "list"}
     if argv_list and not argv_list[0].startswith("-") and argv_list[0] not in commands:
         reordered: list[str] = []
         remaining: list[str] = []
@@ -1789,6 +1837,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 refresh=refresh,
                 noconfirm=args.noconfirm,
                 preinstalled_official=preinstalled_official,
+            )
+        elif args.command == "remove":
+            remove_package(
+                args.package,
+                dest_root,
+                noconfirm=args.noconfirm,
+                remove_cache=args.remove_cache,
             )
         elif args.command == "update":
             update_packages(
