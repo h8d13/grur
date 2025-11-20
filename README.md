@@ -31,7 +31,8 @@
 - `grimaur <term>` (or `grimaur search <term>`) lists matching packages and lets you pick one to install.
 - `grimaur list` to see installed "foreign" packages recognized by pacman
 
-## Install Packages
+## Inspect & Install Packages
+- `grimaur inspect <package> --full` Shows full depends
 - `grimaur install <package>` clones the repo, resolves dependencies, builds with `makepkg`
 - Pass `--noconfirm` to skip confirmation prompts during the build/install steps.
 

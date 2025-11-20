@@ -1714,7 +1714,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Which data to show (default: info)",
     )
     inspect_parser.add_argument(
-        "--show-build-deps",
+        "--full",
         action="store_true",
         help="Include make/check/optional dependencies when showing info",
     )
@@ -1879,7 +1879,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 dest_root,
                 refresh=refresh,
                 target="PKGBUILD" if args.target == "PKGBUILD" else ("SRCINFO" if args.target == "SRCINFO" else "info"),
-                show_deps=args.show_build_deps,
+                show_deps=args.full,
             )
         elif args.command == "list":
             list_installed_packages()
