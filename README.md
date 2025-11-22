@@ -4,7 +4,8 @@
 
 > [!TIP]
 > When the AUR is down, run commands with `--git-mirror` 
-> For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this ensures higher uptimes.
+
+For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this ensures higher uptimes.
 
 ## Install
 ### Directly from the AUR
