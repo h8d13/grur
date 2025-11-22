@@ -1347,7 +1347,8 @@ def search_packages_rpc(
         name = entry.get("Name")
         if not isinstance(name, str):
             continue
-        score = compute_match_score(name, regex=None, needle=needle) # Note set to none
+        score = compute_match_score(name, regex=None, needle=needle) 
+        # Note regex set to none
         if score is None:
             continue
         candidates.append((score, entry))
