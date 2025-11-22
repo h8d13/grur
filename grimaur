@@ -8,6 +8,12 @@ recursively resolve and install dependencies by building packages locally with
 makepkg. Official repository dependencies are installed with pacman when they are
 missing.
 
+## /* SPDX-FileCopyrightText: 2025 
+# (O) Marcus A. <placeholder@placeholder.com>
+# (C) Eihdran L. <hadean-eon-dev@proton.me>
+
+##  SPDX-License-Identifier: MIT */
+
 Requirements: git, makepkg, pacman, and (for installing official packages) sudo/root.
 """
 from __future__ import annotations
