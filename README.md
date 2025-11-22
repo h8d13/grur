@@ -35,7 +35,8 @@ For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this e
 
 >[!NOTE]
 > You can use `grimaur fetch <package>` to inspect `PKGBUILD` and source code before manually installing using `makepkg` or similar.
-> Or even see it directly: `python grimaur inspect brave-bin --target PKGBUILD` Also accepts: `SRCINFO`
+
+Even see it directly: `python grimaur inspect brave-bin --target PKGBUILD` Also accepts: `SRCINFO`
 
 ### Inspect & Install & Remove Packages
 - `grimaur inspect <package> --full` Shows full depends
