@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""grimaur: Fetch, inspect, search, update, and install Arch Linux AUR packages.
+"""grimaur: Fetch, inspect, search, list, update, and install Arch Linux AUR packages.
 
 By default this tool queries the official AUR RPC API and automatically falls back to
 the git mirror at https://github.com/archlinux/aur.git when the endpoint is
@@ -7,6 +7,12 @@ unavailable. Each package lives on its own branch in the mirror, and grimaur can
 recursively resolve and install dependencies by building packages locally with
 makepkg. Official repository dependencies are installed with pacman when they are
 missing.
+
+## /* SPDX-FileCopyrightText: 2025 
+# (O) Marcus A. <placeholder@placeholder.com>
+# (C) Eihdran L. <hadean-eon-dev@proton.me>
+
+##  SPDX-License-Identifier: MIT */
 
 Requirements: git, makepkg, pacman, and (for installing official packages) sudo/root.
 """
@@ -1272,11 +1278,13 @@ def search_packages(
     needle: str | None,
     limit: int | None,
 ) -> list[SearchResult]:
-    if USE_AUR_RPC:
+    # Regex requires git mirror - AUR RPC has their own regex
+    # passing a pattern returns nothing, lets use grimaur's main functionality instead
+    # if --regex is received use git mirror automatically and remove regex functions from RPC related
+    if USE_AUR_RPC and regex is None: # Here condion pass to git instead
         results = search_packages_rpc(
             pattern,
-            regex=regex,
-            needle=needle,
+            needle=needle, 
             limit=limit,
         )
         if results or USE_AUR_RPC:
@@ -1336,7 +1344,6 @@ def search_packages_git(
 def search_packages_rpc(
     pattern: str,
     *,
-    regex: re.Pattern | None,
     needle: str | None,
     limit: int | None,
 ) -> list[SearchResult]:
@@ -1346,7 +1353,8 @@ def search_packages_rpc(
         name = entry.get("Name")
         if not isinstance(name, str):
             continue
-        score = compute_match_score(name, regex=regex, needle=needle)
+        score = compute_match_score(name, regex=None, needle=needle) 
+        # Note regex set to none
         if score is None:
             continue
         candidates.append((score, entry))
@@ -1396,10 +1404,9 @@ def format_search_result(index: int, result: SearchResult) -> list[str]:
         main_parts.append(style(result.version, GREEN))
     if result.installed:
         main_parts.append(style("[installed]", GREEN))
-    if USE_AUR_RPC:
-        meta_bits: list[str] = ["aur rpc"]
-        if result.votes is not None:
-            meta_bits.append(f"{result.votes} votes")
+    # Note using votes we can know its a rpc result
+    if result.votes is not None:
+        meta_bits: list[str] = ["aur rpc", f"{result.votes} votes"]
         if result.is_orphan:
             meta_bits.append("orphan")
     else:
