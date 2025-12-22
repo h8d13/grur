@@ -16,7 +16,7 @@ For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this e
 ## Install
 
 ### Deps
-```sudo pacman -S --needed git base-devel`
+`sudo pacman -S --needed git base-devel`
 
 ### Directly from the AUR
    ```bash
