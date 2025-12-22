@@ -14,6 +14,10 @@ API and **automatically falls back to the official git mirror when the endpoint 
 For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this ensures higher uptimes.
 
 ## Install
+
+### Deps
+```sudo pacman -S --needed git base-devel`
+
 ### Directly from the AUR
    ```bash
    git clone https://aur.archlinux.org/grimaur-git.git
