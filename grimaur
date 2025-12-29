@@ -292,6 +292,7 @@ def ensure_clone(
     *,
     refresh: bool = False,
     force_reclone: bool = False,
+    repo_url: str | None = None,
 ) -> Path:
     """Clone or refresh the package branch into dest_root/package."""
     dest_root.mkdir(parents=True, exist_ok=True)
@@ -306,7 +307,22 @@ def ensure_clone(
                 "Use --force to overwrite."
             )
 
-    if USE_AUR_RPC:
+    if repo_url:
+        if (
+            package_dir.exists()
+            and (package_dir / ".git").is_dir()
+            and not force_reclone
+        ):
+            if refresh:
+                run_command(["git", "-C", str(package_dir), "fetch", "origin"])
+                run_command(
+                    ["git", "-C", str(package_dir), "reset", "--hard", "origin/HEAD"]
+                )
+            return package_dir
+        if package_dir.exists():
+            shutil.rmtree(package_dir)
+        run_command(["git", "clone", repo_url, str(package_dir)])
+    elif USE_AUR_RPC:
         remote_url = f"{get_official_aur_git_base()}/{package}.git"
         if (
             package_dir.exists()
@@ -1022,6 +1038,7 @@ def install_package(
     noconfirm: bool,
     visited: set[str] | None = None,
     preinstalled_official: set[str] | None = None,
+    repo_url: str | None = None,
 ) -> None:
     visited = visited or set()
     if package in visited:
@@ -1040,7 +1057,12 @@ def install_package(
 
     package_dir: Path | None = None
     info: dict | None = None
-    if USE_AUR_RPC:
+    if repo_url:
+        # Skip AUR RPC when using custom repo URL
+        package_dir = ensure_clone(
+            package, dest_root, refresh=refresh, repo_url=repo_url
+        )
+    elif USE_AUR_RPC:
         info = aur_rpc_info(package)
         if info is None and USE_AUR_RPC:
             raise AurGitError(f"Package '{package}' not found via AUR RPC")
@@ -1052,7 +1074,10 @@ def install_package(
         )
         deps = dependency_set_from_rpc(info)
     else:
-        package_dir = ensure_clone(package, dest_root, refresh=refresh)
+        if package_dir is None:
+            package_dir = ensure_clone(
+                package, dest_root, refresh=refresh, repo_url=repo_url
+            )
         srcinfo = read_srcinfo(package_dir)
         _, pkgdesc, deps = parse_dependencies(srcinfo)
     if pkgdesc:
@@ -1119,7 +1144,9 @@ def install_package(
         )
 
     if package_dir is None:
-        package_dir = ensure_clone(package, dest_root, refresh=refresh)
+        package_dir = ensure_clone(
+            package, dest_root, refresh=refresh, repo_url=repo_url
+        )
 
     build_and_install(package_dir, noconfirm=noconfirm)
 
@@ -1857,6 +1884,9 @@ def build_parser() -> argparse.ArgumentParser:
     install_parser.add_argument(
         "--noconfirm", action="store_true", help="Pass --noconfirm to pacman/makepkg"
     )
+    install_parser.add_argument(
+        "--repo-url", help="Clone from custom Git URL instead of AUR"
+    )
 
     remove_parser = subparsers.add_parser("remove", help="Remove an installed package")
     remove_parser.add_argument("package", help="Package name to remove")
@@ -2023,7 +2053,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             fetch_package(args.package, dest_root, refresh=refresh, force=args.force)
         elif args.command == "install":
             preinstalled_official: set[str] | None = None
-            if USE_AUR_RPC:
+            repo_url = getattr(args, "repo_url", None)
+            if USE_AUR_RPC and not repo_url:
                 missing_official, unresolved = collect_missing_official_packages(
                     args.package,
                     dest_root,
@@ -2046,6 +2077,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 refresh=refresh,
                 noconfirm=args.noconfirm,
                 preinstalled_official=preinstalled_official,
+                repo_url=repo_url,
             )
         elif args.command == "remove":
             remove_package(
