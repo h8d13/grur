@@ -53,7 +53,6 @@ Even see it directly: `python grimaur inspect brave-bin --target PKGBUILD` Also 
 ### Inspect & Install & Remove Packages
 - `grimaur inspect <package> --full` Shows full depends
 - `grimaur install <package>` clones the repo, resolves dependencies, builds with `makepkg`
-   - Pass `--noconfirm` to skip confirmation prompts during the build/install steps.
    - Pass `--git-mirror` to skip AUR RPC
    - Pass `--use-ssh` use SSH instead of HTTPS
 - `grimaur remove <package>` to uninstall from pacman
@@ -68,12 +67,11 @@ Even see it directly: `python grimaur inspect brave-bin --target PKGBUILD` Also 
 - `grimaur update <pkg1> <pkg2>` limits the update run to specific packages.
 - `grimaur update --devel` Update all *-git packages aswell (needed for grimaur-git for example).
 - Combine with `--refresh` to force a fresh pull of every tracked package.
-- Respects `IgnorePkg = x y z` from `/etc/pacman.conf`
 
 ### Additional Options
 
 - Useful to build in `tmp/` pass `--dest-root` - (default: `~/.cache/aurgit`) 
-- For automating updates `gimaur update`:
+- For automating updates `grimaur update`:
    - Pass `--global --download`, download updates without installing `-Syuw`
    - Pass `--global --install`, to be used with command above `-Su`
 - Useful for scripting on top of Grimaur
@@ -82,3 +80,7 @@ Even see it directly: `python grimaur inspect brave-bin --target PKGBUILD` Also 
    - `grimaur search <term> --no-interactive` lists results without prompting to install
 - Force `grimaur fetch <package> --force` reclones even if the directory exists
 - Complete example: `python grimaur --use-ssh search "brave.*-bin" --no-interactive`
+
+### Details
+- Respects `IgnorePkg = x y z` from `/etc/pacman.conf`
+- Pass `--noconfirm` to skip confirmation prompts (works with install, update, remove, and search commands)
