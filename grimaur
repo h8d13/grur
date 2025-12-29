@@ -33,8 +33,14 @@ from pathlib import Path
 from typing import Any
 from collections.abc import Iterable, Sequence
 
-AUR_REMOTE = "https://github.com/archlinux/aur.git"
-OFFICIAL_AUR_GIT_BASE = "https://aur.archlinux.org"
+def get_aur_remote() -> str:
+    """Return the AUR mirror URL based on USE_SSH setting."""
+    return "git@github.com:archlinux/aur.git" if USE_SSH else "https://github.com/archlinux/aur.git"
+
+def get_official_aur_git_base() -> str:
+    """Return the official AUR git base URL based on USE_SSH setting."""
+    return "ssh://aur@aur.archlinux.org" if USE_SSH else "https://aur.archlinux.org"
+
 CGIT_RAW_BASE = "https://aur.archlinux.org/cgit/aur.git/plain"
 AUR_RPC_ENDPOINT = "https://aur.archlinux.org/rpc/"
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/archlinux/aur"
@@ -50,6 +56,7 @@ DIM = "\033[2m"
 USE_COLOR = False
 USE_AUR_RPC = False
 FORCE_GIT_MIRROR = False
+USE_SSH = False
 _INSTALLED_CACHE: set[str] | None = None
 _PROVIDES_CACHE: dict[str, set[str] | None] = {}
 _VIRTUAL_PROVIDER_CACHE: dict[str, str | None] = {}
@@ -58,7 +65,7 @@ _RPC_FALLBACK_NOTIFIED = False
 
 _COMMON_AUR_SUFFIXES = ("-bin",)
 
-_GLOBAL_FLAG_OPTIONS = {"--refresh", "--no-color", "--aur-rpc", "--git-mirror"}
+_GLOBAL_FLAG_OPTIONS = {"--refresh", "--no-color", "--aur-rpc", "--git-mirror", "--use-ssh"}
 _GLOBAL_VALUE_OPTIONS = {"--dest-root"}
 
 
@@ -286,7 +293,7 @@ def ensure_clone(
             )
 
     if USE_AUR_RPC:
-        remote_url = f"{OFFICIAL_AUR_GIT_BASE}/{package}.git"
+        remote_url = f"{get_official_aur_git_base()}/{package}.git"
         if package_dir.exists() and (package_dir / ".git").is_dir() and not force_reclone:
             if refresh:
                 run_command(["git", "-C", str(package_dir), "fetch", "origin"])
@@ -338,7 +345,7 @@ def ensure_clone(
                 "--branch",
                 package,
                 "--single-branch",
-                AUR_REMOTE,
+                get_aur_remote(),
                 str(package_dir),
             ]
         )
@@ -614,7 +621,7 @@ def _search_aur_candidates(dep: str, *, limit: int = 25) -> list[str]:
     for pattern in patterns:
         try:
             output = run_command(
-                ["git", "ls-remote", "--heads", AUR_REMOTE, pattern],
+                ["git", "ls-remote", "--heads", get_aur_remote(), pattern],
                 capture=True,
             )
         except AurGitError:
@@ -736,7 +743,7 @@ def exists_in_aur_mirror(package: str) -> bool:
             "git",
             "ls-remote",
             "--heads",
-            AUR_REMOTE,
+            get_aur_remote(),
             package,
         ], capture=True)
     except AurGitError:
@@ -779,7 +786,7 @@ def get_remote_head(package: str) -> str | None:
                 [
                     "git",
                     "ls-remote",
-                    f"{OFFICIAL_AUR_GIT_BASE}/{package}.git",
+                    f"{get_official_aur_git_base()}/{package}.git",
                     "HEAD",
                 ],
                 capture=True,
@@ -790,7 +797,7 @@ def get_remote_head(package: str) -> str | None:
                     "git",
                     "ls-remote",
                     "--heads",
-                    AUR_REMOTE,
+                    get_aur_remote(),
                     package,
                 ],
                 capture=True,
@@ -1309,7 +1316,6 @@ def search_packages(
         if results or USE_AUR_RPC:
             return results
     return search_packages_git(
-        pattern,
         regex=regex,
         needle=needle,
         limit=limit,
@@ -1317,13 +1323,12 @@ def search_packages(
 
 
 def search_packages_git(
-    pattern: str,
     *,
     regex: re.Pattern | None,
     needle: str | None,
     limit: int | None,
 ) -> list[SearchResult]:
-    output = run_command(["git", "ls-remote", "--heads", AUR_REMOTE], capture=True)
+    output = run_command(["git", "ls-remote", "--heads", get_aur_remote()], capture=True)
     candidates: list[tuple[int, str]] = []
     for line in str(output).splitlines():
         if not line.strip():
@@ -1578,7 +1583,7 @@ def complete_packages_git(prefix: str, limit: int) -> list[str]:
     pattern = f"refs/heads/{prefix}*"
     try:
         output = run_command(
-            ["git", "ls-remote", "--heads", AUR_REMOTE, pattern],
+            ["git", "ls-remote", "--heads", get_aur_remote(), pattern],
             capture=True,
         )
     except AurGitError:
@@ -1739,6 +1744,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="Use the git mirror for metadata and dependency resolution",
     )
+    parser.add_argument(
+        "--use-ssh",
+        action="store_true",
+        help="Use SSH instead of HTTPS for git operations",
+    )
     subparsers = parser.add_subparsers(dest="command")
 
     fetch_parser = subparsers.add_parser("fetch", help="Clone the package branch locally")
@@ -1880,10 +1890,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
 
-    global USE_COLOR, USE_AUR_RPC, FORCE_GIT_MIRROR
+    global USE_COLOR, USE_AUR_RPC, FORCE_GIT_MIRROR, USE_SSH
     USE_COLOR = not getattr(args, "no_color", False) and sys.stdout.isatty()
     USE_AUR_RPC = bool(getattr(args, "aur_rpc", True))
     FORCE_GIT_MIRROR = not USE_AUR_RPC
+    USE_SSH = bool(getattr(args, "use_ssh", False))
 
     try:
         if args.command == "fetch":
