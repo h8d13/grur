@@ -53,6 +53,7 @@ Even see it directly: `python grimaur inspect brave-bin --target PKGBUILD` Also 
 - `grimaur install <package>` clones the repo, resolves dependencies, builds with `makepkg`
    - Pass `--noconfirm` to skip confirmation prompts during the build/install steps.
    - Pass `--git-mirror` to skip AUR RPC
+   - Pass `--use-ssh` to skip HTTPS
 - `grimaur remove <package>` to uninstall from pacman
    - Pass `--remove-cache` to delete cached files too
 
