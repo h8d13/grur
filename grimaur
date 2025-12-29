@@ -1741,8 +1741,9 @@ def inspect_package(
     refresh: bool,
     target: str,
     show_deps: bool,
+    repo_url: str | None = None,
 ) -> None:
-    if USE_AUR_RPC and target == "info":
+    if USE_AUR_RPC and target == "info" and not repo_url:
         info = aur_rpc_info(package)
         if info:
             deps = dependency_set_from_rpc(info)
@@ -1783,7 +1784,7 @@ def inspect_package(
         if USE_AUR_RPC:
             raise AurGitError(f"Package '{package}' not found via AUR RPC")
 
-    package_dir = ensure_clone(package, dest_root, refresh=refresh)
+    package_dir = ensure_clone(package, dest_root, refresh=refresh, repo_url=repo_url)
     if target == "PKGBUILD":
         pkgbuild_path = package_dir / "PKGBUILD"
         if not pkgbuild_path.exists():
@@ -1826,8 +1827,17 @@ def inspect_package(
             print("Optional: (none)")
 
 
-def fetch_package(package: str, dest_root: Path, *, refresh: bool, force: bool) -> Path:
-    package_dir = ensure_clone(package, dest_root, refresh=refresh, force_reclone=force)
+def fetch_package(
+    package: str,
+    dest_root: Path,
+    *,
+    refresh: bool,
+    force: bool,
+    repo_url: str | None = None,
+) -> Path:
+    package_dir = ensure_clone(
+        package, dest_root, refresh=refresh, force_reclone=force, repo_url=repo_url
+    )
     print(f"Package fetched to {package_dir}")
     return package_dir
 
@@ -1876,6 +1886,7 @@ def build_parser() -> argparse.ArgumentParser:
     fetch_parser.add_argument(
         "--force", action="store_true", help="Reclone even if directory exists"
     )
+    fetch_parser.add_argument("--repo-url", help="Clone from custom Git URL")
 
     install_parser = subparsers.add_parser(
         "install", help="Resolve dependencies and build/install a package"
@@ -1884,9 +1895,7 @@ def build_parser() -> argparse.ArgumentParser:
     install_parser.add_argument(
         "--noconfirm", action="store_true", help="Pass --noconfirm to pacman/makepkg"
     )
-    install_parser.add_argument(
-        "--repo-url", help="Clone from custom Git URL instead of AUR"
-    )
+    install_parser.add_argument("--repo-url", help="Clone from custom Git URL")
 
     remove_parser = subparsers.add_parser("remove", help="Remove an installed package")
     remove_parser.add_argument("package", help="Package name to remove")
@@ -1990,6 +1999,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include make/check/optional dependencies when showing info",
     )
+    inspect_parser.add_argument(
+        "--repo-url", help="Inspect package from custom Git URL"
+    )
     subparsers.add_parser("list", help="List installed foreign (AUR) packages")
 
     return parser
@@ -2050,7 +2062,13 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         if args.command == "fetch":
-            fetch_package(args.package, dest_root, refresh=refresh, force=args.force)
+            fetch_package(
+                args.package,
+                dest_root,
+                refresh=refresh,
+                force=args.force,
+                repo_url=getattr(args, "repo_url", None),
+            )
         elif args.command == "install":
             preinstalled_official: set[str] | None = None
             repo_url = getattr(args, "repo_url", None)
@@ -2178,6 +2196,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if args.target == "PKGBUILD"
                 else ("SRCINFO" if args.target == "SRCINFO" else "info"),
                 show_deps=args.full,
+                repo_url=getattr(args, "repo_url", None),
             )
         elif args.command == "list":
             list_installed_packages()
