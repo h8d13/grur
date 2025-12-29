@@ -72,7 +72,7 @@ Even see it directly: `python grimaur inspect brave-bin --target PKGBUILD` Also 
 
 ### Additional Options
 
-- Useful to build in `/tmp` pass `--dest-root` - Specify where to store cloned packages (default: `~/.cache/aurgit`) 
+- Useful to build in `tmp/` pass `--dest-root` - (default: `~/.cache/aurgit`) 
 - For automating updates:
    - Pass `--global --download`, download updates without installing `-Syuw`
    - Pass `--global --install`, to be used with command above `-Su`
