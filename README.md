@@ -62,6 +62,9 @@ Even see it directly: `python grimaur inspect brave-bin --target PKGBUILD` Also 
 ### Stay Updated
 - `grimaur update` rebuilds every installed “foreign” package that has a newer release.
    - Pass `--global` to update system first, then AUR packages
+   - Pass `--global --system-only` for equivalent of `-Syu`
+   - Pass `--global --index`, only sync package db `-Sy`
+
 - `grimaur update <pkg1> <pkg2>` limits the update run to specific packages.
 - `grimaur update --devel` Update all *-git packages aswell (needed for grimaur-git for example).
 - Combine with `--refresh` to force a fresh pull of every tracked package.
@@ -69,6 +72,10 @@ Even see it directly: `python grimaur inspect brave-bin --target PKGBUILD` Also 
 
 ### Additional Options
 
+- Useful to build in `/tmp` pass `--dest-root` - Specify where to store cloned packages (default: `~/.cache/aurgit`) 
+- For automating updates:
+   - Pass `--global --download`, download updates without installing `-Syuw`
+   - Pass `--global --install`, to be used with command above `-Su`
 - Useful for scripting on top of Grimaur
    - `--no-color` disables colored terminal output 
    - `grimaur search <term> --limit 10` limits results to the first N matches 
