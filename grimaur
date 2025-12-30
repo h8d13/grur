@@ -541,6 +541,12 @@ def _reset_git_worktree(package_dir: Path, refs: Sequence[str]) -> None:
     )
 
 
+def is_regex(pattern: str) -> bool:
+    """Check if pattern contains regex metacharacters."""
+    regex_chars = r'.*+?[]{}()^$|\\'
+    return any(char in pattern for char in regex_chars)
+
+
 def compute_match_score(
     name: str,
     *,
@@ -2130,7 +2136,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "search":
             regex_obj: re.Pattern | None = None
             needle: str | None = None
-            if args.regex:
+            # Auto-detect regex or allow explicit --regex flag
+            use_regex = args.regex or is_regex(args.pattern)
+            if use_regex:
                 try:
                     regex_obj = re.compile(args.pattern)
                 except re.error as exc:
