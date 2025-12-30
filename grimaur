@@ -16,6 +16,7 @@ missing.
 
 Requirements: git, makepkg, pacman, and (for installing official packages) sudo/root.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -33,8 +34,21 @@ from pathlib import Path
 from typing import Any
 from collections.abc import Iterable, Sequence
 
-AUR_REMOTE = "https://github.com/archlinux/aur.git"
-OFFICIAL_AUR_GIT_BASE = "https://aur.archlinux.org"
+
+def get_aur_remote() -> str:
+    """Return the AUR mirror URL based on USE_SSH setting."""
+    return (
+        "git@github.com:archlinux/aur.git"
+        if USE_SSH
+        else "https://github.com/archlinux/aur.git"
+    )
+
+
+def get_official_aur_git_base() -> str:
+    """Return the official AUR git base URL based on USE_SSH setting."""
+    return "ssh://aur@aur.archlinux.org" if USE_SSH else "https://aur.archlinux.org"
+
+
 CGIT_RAW_BASE = "https://aur.archlinux.org/cgit/aur.git/plain"
 AUR_RPC_ENDPOINT = "https://aur.archlinux.org/rpc/"
 GITHUB_RAW_BASE = "https://raw.githubusercontent.com/archlinux/aur"
@@ -50,6 +64,7 @@ DIM = "\033[2m"
 USE_COLOR = False
 USE_AUR_RPC = False
 FORCE_GIT_MIRROR = False
+USE_SSH = False
 _INSTALLED_CACHE: set[str] | None = None
 _PROVIDES_CACHE: dict[str, set[str] | None] = {}
 _VIRTUAL_PROVIDER_CACHE: dict[str, str | None] = {}
@@ -58,7 +73,13 @@ _RPC_FALLBACK_NOTIFIED = False
 
 _COMMON_AUR_SUFFIXES = ("-bin",)
 
-_GLOBAL_FLAG_OPTIONS = {"--refresh", "--no-color", "--aur-rpc", "--git-mirror"}
+_GLOBAL_FLAG_OPTIONS = {
+    "--refresh",
+    "--no-color",
+    "--aur-rpc",
+    "--git-mirror",
+    "--use-ssh",
+}
 _GLOBAL_VALUE_OPTIONS = {"--dest-root"}
 
 
@@ -271,6 +292,7 @@ def ensure_clone(
     *,
     refresh: bool = False,
     force_reclone: bool = False,
+    repo_url: str | None = None,
 ) -> Path:
     """Clone or refresh the package branch into dest_root/package."""
     dest_root.mkdir(parents=True, exist_ok=True)
@@ -285,9 +307,28 @@ def ensure_clone(
                 "Use --force to overwrite."
             )
 
-    if USE_AUR_RPC:
-        remote_url = f"{OFFICIAL_AUR_GIT_BASE}/{package}.git"
-        if package_dir.exists() and (package_dir / ".git").is_dir() and not force_reclone:
+    if repo_url:
+        if (
+            package_dir.exists()
+            and (package_dir / ".git").is_dir()
+            and not force_reclone
+        ):
+            if refresh:
+                run_command(["git", "-C", str(package_dir), "fetch", "origin"])
+                run_command(
+                    ["git", "-C", str(package_dir), "reset", "--hard", "origin/HEAD"]
+                )
+            return package_dir
+        if package_dir.exists():
+            shutil.rmtree(package_dir)
+        run_command(["git", "clone", repo_url, str(package_dir)])
+    elif USE_AUR_RPC:
+        remote_url = f"{get_official_aur_git_base()}/{package}.git"
+        if (
+            package_dir.exists()
+            and (package_dir / ".git").is_dir()
+            and not force_reclone
+        ):
             if refresh:
                 run_command(["git", "-C", str(package_dir), "fetch", "origin"])
                 try:
@@ -314,7 +355,11 @@ def ensure_clone(
             shutil.rmtree(package_dir)
         run_command(["git", "clone", remote_url, str(package_dir)])
     else:
-        if package_dir.exists() and (package_dir / ".git").is_dir() and not force_reclone:
+        if (
+            package_dir.exists()
+            and (package_dir / ".git").is_dir()
+            and not force_reclone
+        ):
             if refresh:
                 run_command(["git", "-C", str(package_dir), "fetch", "origin", package])
                 try:
@@ -338,7 +383,7 @@ def ensure_clone(
                 "--branch",
                 package,
                 "--single-branch",
-                AUR_REMOTE,
+                get_aur_remote(),
                 str(package_dir),
             ]
         )
@@ -355,7 +400,15 @@ def read_srcinfo(package_dir: Path) -> str:
     return str(output)
 
 
-_SRCINFO_KEYS = {"depends", "makedepends", "checkdepends", "optdepends", "pkgname", "pkgbase", "pkgdesc"}
+_SRCINFO_KEYS = {
+    "depends",
+    "makedepends",
+    "checkdepends",
+    "optdepends",
+    "pkgname",
+    "pkgbase",
+    "pkgdesc",
+}
 
 
 def parse_dependencies(srcinfo_content: str) -> tuple[str, str | None, DependencySet]:
@@ -393,7 +446,11 @@ def parse_dependencies(srcinfo_content: str) -> tuple[str, str | None, Dependenc
 
     if not pkgbase:
         raise AurGitError("Failed to parse pkgbase from .SRCINFO")
-    return pkgbase, pkgdesc, DependencySet(depends, makedepends, checkdepends, optdepends)
+    return (
+        pkgbase,
+        pkgdesc,
+        DependencySet(depends, makedepends, checkdepends, optdepends),
+    )
 
 
 _DEP_SPLIT_RE = re.compile(r"[<>~=]+")
@@ -455,24 +512,29 @@ def _parse_srcinfo_metadata(srcinfo_content: str) -> tuple[str | None, str | Non
 def _reset_git_worktree(package_dir: Path, refs: Sequence[str]) -> None:
     for ref in refs:
         try:
-            run_command([
+            run_command(
+                [
+                    "git",
+                    "-C",
+                    str(package_dir),
+                    "rev-parse",
+                    "--verify",
+                    ref,
+                ],
+                capture=True,
+            )
+        except AurGitError:
+            continue
+        run_command(
+            [
                 "git",
                 "-C",
                 str(package_dir),
-                "rev-parse",
-                "--verify",
+                "reset",
+                "--hard",
                 ref,
-            ], capture=True)
-        except AurGitError:
-            continue
-        run_command([
-            "git",
-            "-C",
-            str(package_dir),
-            "reset",
-            "--hard",
-            ref,
-        ])
+            ]
+        )
         return
     raise AurGitError(
         f"Could not reset {package_dir.name} to any of: {', '.join(refs)}"
@@ -513,7 +575,9 @@ def _pacman_returns_zero(args: Sequence[str]) -> bool:
             text=True,
         )
     except FileNotFoundError as exc:
-        raise AurGitError("pacman command not found; this tool must run on Arch Linux") from exc
+        raise AurGitError(
+            "pacman command not found; this tool must run on Arch Linux"
+        ) from exc
     return proc.returncode == 0
 
 
@@ -547,7 +611,9 @@ def is_dependency_satisfied(dep: str) -> bool:
             text=True,
         )
     except FileNotFoundError as exc:
-        raise AurGitError("pacman command not found; this tool must run on Arch Linux") from exc
+        raise AurGitError(
+            "pacman command not found; this tool must run on Arch Linux"
+        ) from exc
     return proc.returncode == 0
 
 
@@ -614,7 +680,7 @@ def _search_aur_candidates(dep: str, *, limit: int = 25) -> list[str]:
     for pattern in patterns:
         try:
             output = run_command(
-                ["git", "ls-remote", "--heads", AUR_REMOTE, pattern],
+                ["git", "ls-remote", "--heads", get_aur_remote(), pattern],
                 capture=True,
             )
         except AurGitError:
@@ -732,13 +798,16 @@ def exists_in_aur_mirror(package: str) -> bool:
         if USE_AUR_RPC:
             return False
     try:
-        output = run_command([
-            "git",
-            "ls-remote",
-            "--heads",
-            AUR_REMOTE,
-            package,
-        ], capture=True)
+        output = run_command(
+            [
+                "git",
+                "ls-remote",
+                "--heads",
+                get_aur_remote(),
+                package,
+            ],
+            capture=True,
+        )
     except AurGitError:
         return False
     return bool(str(output).strip())
@@ -766,7 +835,9 @@ def get_local_head(package_dir: Path) -> str | None:
     if not (package_dir / ".git").is_dir():
         return None
     try:
-        output = run_command(["git", "-C", str(package_dir), "rev-parse", "HEAD"], capture=True)
+        output = run_command(
+            ["git", "-C", str(package_dir), "rev-parse", "HEAD"], capture=True
+        )
     except AurGitError:
         return None
     return str(output).strip() or None
@@ -779,7 +850,7 @@ def get_remote_head(package: str) -> str | None:
                 [
                     "git",
                     "ls-remote",
-                    f"{OFFICIAL_AUR_GIT_BASE}/{package}.git",
+                    f"{get_official_aur_git_base()}/{package}.git",
                     "HEAD",
                 ],
                 capture=True,
@@ -790,7 +861,7 @@ def get_remote_head(package: str) -> str | None:
                     "git",
                     "ls-remote",
                     "--heads",
-                    AUR_REMOTE,
+                    get_aur_remote(),
                     package,
                 ],
                 capture=True,
@@ -832,6 +903,7 @@ def list_installed_packages() -> None:
     for name in sorted(foreign.keys()):
         version = foreign[name]
         print(f"  {style(name, BOLD)} {style(version, GREEN)}")
+
 
 def fetch_git_file(package: str, path: str) -> str | None:
     safe_package = urllib.parse.quote(package)
@@ -966,6 +1038,7 @@ def install_package(
     noconfirm: bool,
     visited: set[str] | None = None,
     preinstalled_official: set[str] | None = None,
+    repo_url: str | None = None,
 ) -> None:
     visited = visited or set()
     if package in visited:
@@ -984,15 +1057,27 @@ def install_package(
 
     package_dir: Path | None = None
     info: dict | None = None
-    if USE_AUR_RPC:
+    if repo_url:
+        # Skip AUR RPC when using custom repo URL
+        package_dir = ensure_clone(
+            package, dest_root, refresh=refresh, repo_url=repo_url
+        )
+    elif USE_AUR_RPC:
         info = aur_rpc_info(package)
         if info is None and USE_AUR_RPC:
             raise AurGitError(f"Package '{package}' not found via AUR RPC")
     if info:
-        pkgdesc = info.get("Description") if isinstance(info.get("Description"), str) else None
+        pkgdesc = (
+            info.get("Description")
+            if isinstance(info.get("Description"), str)
+            else None
+        )
         deps = dependency_set_from_rpc(info)
     else:
-        package_dir = ensure_clone(package, dest_root, refresh=refresh)
+        if package_dir is None:
+            package_dir = ensure_clone(
+                package, dest_root, refresh=refresh, repo_url=repo_url
+            )
         srcinfo = read_srcinfo(package_dir)
         _, pkgdesc, deps = parse_dependencies(srcinfo)
     if pkgdesc:
@@ -1043,7 +1128,9 @@ def install_package(
                 print(f"  {dep_pkg} (provides {provides_label})")
             else:
                 print(f"  {dep_pkg}")
-        if not prompt_confirm(style("Proceed with building these dependencies? [y/N]: ", YELLOW)):
+        if not prompt_confirm(
+            style("Proceed with building these dependencies? [y/N]: ", YELLOW)
+        ):
             raise AurGitError("Installation aborted by user")
 
     for aur_dep in sorted(aur_dependencies):
@@ -1057,9 +1144,12 @@ def install_package(
         )
 
     if package_dir is None:
-        package_dir = ensure_clone(package, dest_root, refresh=refresh)
+        package_dir = ensure_clone(
+            package, dest_root, refresh=refresh, repo_url=repo_url
+        )
 
     build_and_install(package_dir, noconfirm=noconfirm)
+
 
 def remove_package(
     package: str,
@@ -1100,6 +1190,7 @@ def remove_package(
         else:
             print(f"No cache found at {package_dir}")
 
+
 def get_ignored_packages() -> set[str]:
     ignored: set[str] = set()
     pacman_conf = Path("/etc/pacman.conf")
@@ -1125,6 +1216,7 @@ def get_ignored_packages() -> set[str]:
                     ignored.add(pkg.strip())
 
     return ignored
+
 
 def update_packages(
     dest_root: Path,
@@ -1163,12 +1255,24 @@ def update_packages(
             invalidate_installed_cache()
         except AurGitError as exc:
             print(f"System update failed: {exc}", file=sys.stderr)
-            if not noconfirm and not prompt_confirm(style("Continue with AUR updates? [y/N]: ", YELLOW)):
+            if not noconfirm and not prompt_confirm(
+                style("Continue with AUR updates? [y/N]: ", YELLOW)
+            ):
                 return
 
         if download_only:
-            print(style("WARNING: System packages downloaded but not installed (partial update state).", YELLOW))
-            print(style("Run 'grimaur update --global --install' or 'sudo pacman -Su' to install them.", YELLOW))
+            print(
+                style(
+                    "WARNING: System packages downloaded but not installed (partial update state).",
+                    YELLOW,
+                )
+            )
+            print(
+                style(
+                    "Run 'grimaur update --global --install' or 'sudo pacman -Su' to install them.",
+                    YELLOW,
+                )
+            )
 
         if system_only:
             return
@@ -1247,7 +1351,10 @@ def update_packages(
         if missing:
             source_label = "AUR RPC" if USE_AUR_RPC else "AUR mirror"
             for package in missing:
-                print(f"note: {package} is not available via {source_label}", file=sys.stderr)
+                print(
+                    f"note: {package} is not available via {source_label}",
+                    file=sys.stderr,
+                )
         return
 
     for index, candidate in enumerate(pending_updates, start=1):
@@ -1300,7 +1407,7 @@ def search_packages(
     # Regex requires git mirror - AUR RPC has their own regex
     # passing a pattern returns nothing, lets use grimaur's main functionality instead
     # if --regex is received use git mirror automatically and remove regex functions from RPC related
-    if USE_AUR_RPC and regex is None: # Here condion pass to git instead
+    if USE_AUR_RPC and regex is None:  # Here condion pass to git instead
         results = search_packages_rpc(
             pattern,
             needle=needle,
@@ -1309,7 +1416,6 @@ def search_packages(
         if results or USE_AUR_RPC:
             return results
     return search_packages_git(
-        pattern,
         regex=regex,
         needle=needle,
         limit=limit,
@@ -1317,13 +1423,14 @@ def search_packages(
 
 
 def search_packages_git(
-    pattern: str,
     *,
     regex: re.Pattern | None,
     needle: str | None,
     limit: int | None,
 ) -> list[SearchResult]:
-    output = run_command(["git", "ls-remote", "--heads", AUR_REMOTE], capture=True)
+    output = run_command(
+        ["git", "ls-remote", "--heads", get_aur_remote()], capture=True
+    )
     candidates: list[tuple[int, str]] = []
     for line in str(output).splitlines():
         if not line.strip():
@@ -1386,11 +1493,17 @@ def search_packages_rpc(
         name_value = entry.get("Name")
         if not isinstance(name_value, str):
             continue
-        version = entry.get("Version") if isinstance(entry.get("Version"), str) else None
-        description = entry.get("Description") if isinstance(entry.get("Description"), str) else None
+        version = (
+            entry.get("Version") if isinstance(entry.get("Version"), str) else None
+        )
+        description = (
+            entry.get("Description")
+            if isinstance(entry.get("Description"), str)
+            else None
+        )
         votes = None
         votes_value = entry.get("NumVotes")
-        if isinstance(votes_value, (int, float, str)):
+        if isinstance(votes_value, int | float | str):
             try:
                 votes = int(votes_value)
             except (TypeError, ValueError):
@@ -1425,11 +1538,13 @@ def format_search_result(index: int, result: SearchResult) -> list[str]:
         main_parts.append(style("[installed]", GREEN))
     # Note using votes we can know its a rpc result
     if result.votes is not None:
-        meta_bits: list[str] = ["aur rpc", f"{result.votes} votes"]
+        protocol = "ssh" if USE_SSH else "https"
+        meta_bits: list[str] = [f"{protocol} aur rpc", f"{result.votes} votes"]
         if result.is_orphan:
             meta_bits.append("orphan")
     else:
-        meta_bits = ["git mirror"]
+        protocol = "ssh" if USE_SSH else "https"
+        meta_bits = [f"{protocol} git mirror"]
     line = f"{index_label} {' '.join(main_parts)}"
     if meta_bits:
         line += f" {style('[' + ', '.join(meta_bits) + ']', DIM)}"
@@ -1467,7 +1582,9 @@ def format_update_candidate(index: int, candidate: UpdateCandidate) -> list[str]
     return [line]
 
 
-def interactive_select_updates(candidates: Sequence[UpdateCandidate]) -> list[UpdateCandidate]:
+def interactive_select_updates(
+    candidates: Sequence[UpdateCandidate],
+) -> list[UpdateCandidate]:
     if not candidates:
         return []
     prompt_text = style(
@@ -1578,7 +1695,7 @@ def complete_packages_git(prefix: str, limit: int) -> list[str]:
     pattern = f"refs/heads/{prefix}*"
     try:
         output = run_command(
-            ["git", "ls-remote", "--heads", AUR_REMOTE, pattern],
+            ["git", "ls-remote", "--heads", get_aur_remote(), pattern],
             capture=True,
         )
     except AurGitError:
@@ -1624,13 +1741,18 @@ def inspect_package(
     refresh: bool,
     target: str,
     show_deps: bool,
+    repo_url: str | None = None,
 ) -> None:
-    if USE_AUR_RPC and target == "info":
+    if USE_AUR_RPC and target == "info" and not repo_url:
         info = aur_rpc_info(package)
         if info:
             deps = dependency_set_from_rpc(info)
             print(f"Package: {package}")
-            description = info.get("Description") if isinstance(info.get("Description"), str) else None
+            description = (
+                info.get("Description")
+                if isinstance(info.get("Description"), str)
+                else None
+            )
             if description:
                 print(f"Description: {description}")
             if deps.depends:
@@ -1662,7 +1784,7 @@ def inspect_package(
         if USE_AUR_RPC:
             raise AurGitError(f"Package '{package}' not found via AUR RPC")
 
-    package_dir = ensure_clone(package, dest_root, refresh=refresh)
+    package_dir = ensure_clone(package, dest_root, refresh=refresh, repo_url=repo_url)
     if target == "PKGBUILD":
         pkgbuild_path = package_dir / "PKGBUILD"
         if not pkgbuild_path.exists():
@@ -1705,8 +1827,17 @@ def inspect_package(
             print("Optional: (none)")
 
 
-def fetch_package(package: str, dest_root: Path, *, refresh: bool, force: bool) -> Path:
-    package_dir = ensure_clone(package, dest_root, refresh=refresh, force_reclone=force)
+def fetch_package(
+    package: str,
+    dest_root: Path,
+    *,
+    refresh: bool,
+    force: bool,
+    repo_url: str | None = None,
+) -> Path:
+    package_dir = ensure_clone(
+        package, dest_root, refresh=refresh, force_reclone=force, repo_url=repo_url
+    )
     print(f"Package fetched to {package_dir}")
     return package_dir
 
@@ -1720,7 +1851,9 @@ def build_parser() -> argparse.ArgumentParser:
         default="~/.cache/aurgit",
         help="Directory to store cloned packages (default: ~/.cache/aurgit)",
     )
-    parser.add_argument("--refresh", action="store_true", help="Refresh existing clones before use")
+    parser.add_argument(
+        "--refresh", action="store_true", help="Refresh existing clones before use"
+    )
     parser.add_argument(
         "--no-color",
         action="store_true",
@@ -1739,19 +1872,36 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_false",
         help="Use the git mirror for metadata and dependency resolution",
     )
+    parser.add_argument(
+        "--use-ssh",
+        action="store_true",
+        help="Use SSH instead of HTTPS for git operations",
+    )
     subparsers = parser.add_subparsers(dest="command")
 
-    fetch_parser = subparsers.add_parser("fetch", help="Clone the package branch locally")
+    fetch_parser = subparsers.add_parser(
+        "fetch", help="Clone the package branch locally"
+    )
     fetch_parser.add_argument("package", help="Package name / branch to clone")
-    fetch_parser.add_argument("--force", action="store_true", help="Reclone even if directory exists")
+    fetch_parser.add_argument(
+        "--force", action="store_true", help="Reclone even if directory exists"
+    )
+    fetch_parser.add_argument("--repo-url", help="Clone from custom Git URL")
 
-    install_parser = subparsers.add_parser("install", help="Resolve dependencies and build/install a package")
+    install_parser = subparsers.add_parser(
+        "install", help="Resolve dependencies and build/install a package"
+    )
     install_parser.add_argument("package", help="Package name to install")
-    install_parser.add_argument("--noconfirm", action="store_true", help="Pass --noconfirm to pacman/makepkg")
+    install_parser.add_argument(
+        "--noconfirm", action="store_true", help="Pass --noconfirm to pacman/makepkg"
+    )
+    install_parser.add_argument("--repo-url", help="Clone from custom Git URL")
 
     remove_parser = subparsers.add_parser("remove", help="Remove an installed package")
     remove_parser.add_argument("package", help="Package name to remove")
-    remove_parser.add_argument("--noconfirm", action="store_true", help="Pass --noconfirm to pacman")
+    remove_parser.add_argument(
+        "--noconfirm", action="store_true", help="Pass --noconfirm to pacman"
+    )
     remove_parser.add_argument(
         "--remove-cache",
         action="store_true",
@@ -1767,7 +1917,9 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="*",
         help="Specific foreign package names to update (default: all from pacman -Qm)",
     )
-    update_parser.add_argument("--noconfirm", action="store_true", help="Pass --noconfirm to pacman/makepkg")
+    update_parser.add_argument(
+        "--noconfirm", action="store_true", help="Pass --noconfirm to pacman/makepkg"
+    )
     update_parser.add_argument(
         "--devel",
         action="store_true",
@@ -1799,10 +1951,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="With --global, install already-downloaded packages (pacman -Su)",
     )
-    search_parser = subparsers.add_parser("search", help="Search packages via the configured backend")
-    search_parser.add_argument("pattern", help="Substring or regex to match against package names")
-    search_parser.add_argument("--regex", action="store_true", help="Treat the pattern as a regular expression")
-    search_parser.add_argument("--limit", type=int, help="Limit results to the first N matches")
+    search_parser = subparsers.add_parser(
+        "search", help="Search packages via the configured backend"
+    )
+    search_parser.add_argument(
+        "pattern", help="Substring or regex to match against package names"
+    )
+    search_parser.add_argument(
+        "--regex", action="store_true", help="Treat the pattern as a regular expression"
+    )
+    search_parser.add_argument(
+        "--limit", type=int, help="Limit results to the first N matches"
+    )
     search_parser.add_argument(
         "--no-interactive",
         action="store_true",
@@ -1824,7 +1984,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Limit number of completion candidates (default: 64)",
     )
 
-    inspect_parser = subparsers.add_parser("inspect", help="Show PKGBUILD or dependency information")
+    inspect_parser = subparsers.add_parser(
+        "inspect", help="Show PKGBUILD or dependency information"
+    )
     inspect_parser.add_argument("package", help="Package name to inspect")
     inspect_parser.add_argument(
         "--target",
@@ -1837,6 +1999,9 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include make/check/optional dependencies when showing info",
     )
+    inspect_parser.add_argument(
+        "--repo-url", help="Inspect package from custom Git URL"
+    )
     subparsers.add_parser("list", help="List installed foreign (AUR) packages")
 
     return parser
@@ -1844,7 +2009,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     argv_list = list(argv if argv is not None else sys.argv[1:])
-    commands = {"fetch", "install", "remove", "update", "search", "inspect", "complete", "list"}
+    commands = {
+        "fetch",
+        "install",
+        "remove",
+        "update",
+        "search",
+        "inspect",
+        "complete",
+        "list",
+    }
     if argv_list and not argv_list[0].startswith("-") and argv_list[0] not in commands:
         reordered: list[str] = []
         remaining: list[str] = []
@@ -1880,17 +2054,25 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
 
-    global USE_COLOR, USE_AUR_RPC, FORCE_GIT_MIRROR
+    global USE_COLOR, USE_AUR_RPC, FORCE_GIT_MIRROR, USE_SSH
     USE_COLOR = not getattr(args, "no_color", False) and sys.stdout.isatty()
     USE_AUR_RPC = bool(getattr(args, "aur_rpc", True))
     FORCE_GIT_MIRROR = not USE_AUR_RPC
+    USE_SSH = bool(getattr(args, "use_ssh", False))
 
     try:
         if args.command == "fetch":
-            fetch_package(args.package, dest_root, refresh=refresh, force=args.force)
+            fetch_package(
+                args.package,
+                dest_root,
+                refresh=refresh,
+                force=args.force,
+                repo_url=getattr(args, "repo_url", None),
+            )
         elif args.command == "install":
             preinstalled_official: set[str] | None = None
-            if USE_AUR_RPC:
+            repo_url = getattr(args, "repo_url", None)
+            if USE_AUR_RPC and not repo_url:
                 missing_official, unresolved = collect_missing_official_packages(
                     args.package,
                     dest_root,
@@ -1898,7 +2080,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 if unresolved:
                     missing_list = ", ".join(sorted(unresolved))
-                    raise AurGitError(f"Could not resolve providers for: {missing_list}")
+                    raise AurGitError(
+                        f"Could not resolve providers for: {missing_list}"
+                    )
                 if missing_official:
                     install_official_packages(
                         missing_official,
@@ -1911,6 +2095,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 refresh=refresh,
                 noconfirm=args.noconfirm,
                 preinstalled_official=preinstalled_official,
+                repo_url=repo_url,
             )
         elif args.command == "remove":
             remove_package(
@@ -1959,9 +2144,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print_search_results(display_results)
 
             interactive = (
-                not args.no_interactive
-                and sys.stdin.isatty()
-                and sys.stdout.isatty()
+                not args.no_interactive and sys.stdin.isatty() and sys.stdout.isatty()
             )
             if not interactive:
                 return 0
@@ -2009,8 +2192,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.package,
                 dest_root,
                 refresh=refresh,
-                target="PKGBUILD" if args.target == "PKGBUILD" else ("SRCINFO" if args.target == "SRCINFO" else "info"),
+                target="PKGBUILD"
+                if args.target == "PKGBUILD"
+                else ("SRCINFO" if args.target == "SRCINFO" else "info"),
                 show_deps=args.full,
+                repo_url=getattr(args, "repo_url", None),
             )
         elif args.command == "list":
             list_installed_packages()

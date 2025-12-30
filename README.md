@@ -14,6 +14,10 @@ API and **automatically falls back to the official git mirror when the endpoint 
 For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this ensures higher uptimes.
 
 ## Install
+
+### Deps
+`sudo pacman -S --needed git base-devel`
+
 ### Directly from the AUR
    ```bash
    git clone https://aur.archlinux.org/grimaur-git.git
@@ -37,6 +41,8 @@ For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this e
 ## Usage
 ### Search Packages
 - `grimaur <term>` (or `grimaur search <term>`) lists matching packages and lets you pick one to install.
+   - Pass `--regex "pattern-*"` automatically use git mirror
+   - Pass `--git-mirror` when endpoint is down
 - `grimaur list` to see installed "foreign" packages recognized by pacman -Qm
 
 >[!NOTE]
@@ -45,26 +51,40 @@ For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this e
 Even see it directly: `python grimaur inspect brave-bin --target PKGBUILD` Also accepts: `SRCINFO`
 
 ### Inspect & Install & Remove Packages
+
 - `grimaur inspect <package> --full` Shows full depends
 - `grimaur install <package>` clones the repo, resolves dependencies, builds with `makepkg`
-   - Pass `--noconfirm` to skip confirmation prompts during the build/install steps.
    - Pass `--git-mirror` to skip AUR RPC
+   - Pass `--use-ssh` use SSH instead of HTTPS
 - `grimaur remove <package>` to uninstall from pacman
    - Pass `--remove-cache` to delete cached files too
+-  `grimaur install/fetch/inspect mypkg --repo-url <url>` to use custom URL instead
 
 ### Stay Updated
 - `grimaur update` rebuilds every installed “foreign” package that has a newer release.
    - Pass `--global` to update system first, then AUR packages
+   - Pass `--global --system-only` for equivalent of `-Syu`
+   - Pass `--global --index`, only sync package db `-Sy`
+
 - `grimaur update <pkg1> <pkg2>` limits the update run to specific packages.
 - `grimaur update --devel` Update all *-git packages aswell (needed for grimaur-git for example).
 - Combine with `--refresh` to force a fresh pull of every tracked package.
-- Respects `IgnorePkg = x y z` from `/etc/pacman.conf`
 
 ### Additional Options
 
+- Useful to build in `tmp/` pass `--dest-root` - (default: `~/.cache/aurgit`) 
+- For automating updates `grimaur update`:
+   - Pass `--global --download`, download updates without installing `-Syuw`
+   - Pass `--global --install`, to be used with command above `-Su`
 - Useful for scripting on top of Grimaur
    - `--no-color` disables colored terminal output 
    - `grimaur search <term> --limit 10` limits results to the first N matches 
    - `grimaur search <term> --no-interactive` lists results without prompting to install
 - Force `grimaur fetch <package> --force` reclones even if the directory exists
-- Regex matcher example: `python grimaur search "brave.*-bin" --regex --no-interactive`
+- Complete example: `python grimaur --use-ssh search "brave.*-bin" --no-interactive`
+
+### Details
+- Respects `IgnorePkg = x y z` from `/etc/pacman.conf`
+- Pass `--noconfirm` to skip prompts (install, update, remove, and search)
+
+---
