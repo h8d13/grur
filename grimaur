@@ -98,8 +98,18 @@ def disable_aur_rpc(reason: str) -> None:
     USE_AUR_RPC = False
     if _RPC_FALLBACK_NOTIFIED:
         return
+
+    # Provide user-friendly messages based on error type
     summary = reason.strip().splitlines()[0] if reason else "unknown error"
-    message = f"AUR RPC unavailable ({summary}); falling back to git mirror."
+    if "Too many package results" in reason:
+        message = "AUR RPC too many results; falling back to git mirror..."
+    elif "Connection refused" in reason or "timed out" in reason:
+        message = "AUR RPC unavailable; falling back to git mirror..."
+    elif "status" in reason.lower():
+        message = f"AUR RPC error ({summary}); falling back to git mirror..."
+    else:
+        message = f"AUR RPC unavailable ({summary}); falling back to git mirror..."
+
     print(style(message, YELLOW), file=sys.stderr)
     _RPC_FALLBACK_NOTIFIED = True
 
@@ -182,7 +192,9 @@ def aur_rpc_call(params: dict[str, Any]) -> dict[str, Any]:
         disable_aur_rpc("invalid JSON payload")
         raise AurGitError("Failed to decode AUR RPC response") from exc
     if data.get("type") == "error":
-        raise AurGitError(str(data.get("error") or "Unknown AUR RPC error"))
+        error_msg = str(data.get("error") or "Unknown AUR RPC error")
+        disable_aur_rpc(error_msg)
+        raise AurGitError(error_msg)
     return data
 
 
@@ -1455,7 +1467,7 @@ def search_packages_git(
             continue
         candidates.append((score, package))
         if sys.stderr.isatty():
-            print(f"\rFound results: {len(candidates)}", end="", file=sys.stderr, flush=True)
+            print(f"\r{style('Found results:', YELLOW)} {len(candidates)}", end="", file=sys.stderr, flush=True)
     if sys.stderr.isatty():
         print(file=sys.stderr)
     candidates.sort(key=lambda item: (item[0], item[1]))
@@ -1485,7 +1497,7 @@ def search_packages_git(
         futures = {executor.submit(fetch_metadata, item): item for item in candidates}
         for idx, future in enumerate(as_completed(futures), 1):
             if sys.stderr.isatty():
-                print(f"\rFetching metadata: {idx}/{total_candidates}", end="", file=sys.stderr, flush=True)
+                print(f"\r{style('Fetching metadata:', YELLOW)} {idx}/{total_candidates}", end="", file=sys.stderr, flush=True)
             results.append(future.result())
 
     if sys.stderr.isatty():
