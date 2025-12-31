@@ -2165,7 +2165,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             regex_obj: re.Pattern | None = None
             needle: str | None = None
             # Auto-detect regex or allow explicit --regex flag
-            use_regex = args.regex or is_regex(args.pattern)
+            use_regex = is_regex(args.pattern)
             if use_regex:
                 try:
                     regex_obj = re.compile(args.pattern)
