@@ -60,6 +60,10 @@ Even see it directly: `python grimaur inspect brave-bin --target PKGBUILD` Also 
    - Pass `--remove-cache` to delete cached files too
 -  `grimaur install/fetch/inspect mypkg --repo-url <url>` to use custom URL instead
 
+For example to build `archisntall` from source:
+
+`python grimaur install archinstall-latest --repo-url https://github.com/archlinux/archinstall`
+
 ### Stay Updated
 - `grimaur update` rebuilds every installed “foreign” package that has a newer release.
    - Pass `--global` to update system first, then AUR packages
