@@ -40,11 +40,11 @@ Standard pacman wrapper with simplified commands.
 ```bash
 grur mirrors              # Sort mirrors using reflector
 grur sync                 # Sync package databases (-Sy)
+grur check                # Check for available updates (checkupdates)
+grur clean                # Clean package cache (paccache -r)
 grur upgrade              # Full system upgrade (-Syu)
 grur upgrade --download   # Download only (-Syuw)
 grur upgrade --install    # Install downloaded updates (-Su)
-grur check                # Check for available updates (checkupdates)
-grur clean                # Clean package cache (paccache -r)
 ```
 
 ### Package Operations
