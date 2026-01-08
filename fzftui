@@ -251,13 +251,77 @@ def search_installed() -> None:
         gpm.remove_package(pkg, dependencies=True)
 
 
+def toggle_repos() -> None:
+    """Interactive repository toggle menu with fzf."""
+    repos = gpm.get_repos()
+
+    items = []
+    for name, enabled in repos:
+        status = '[enabled]' if enabled else '[disabled]'
+        items.append(f"{name:<20} {status}")
+
+    result = run_fzf(
+        items,
+        prompt='Repos> ',
+        multi=True,
+        header='TAB to select, ENTER to toggle',
+    )
+
+    if not result or not result.selected:
+        return
+
+    for line in result.selected:
+        repo_name = line.split()[0]
+        gpm.toggle_repo(repo_name)
+
+        sync_cmd = ['pacman', '-Sy']
+        g.needs_sudo(sync_cmd)
+        g.run_command(sync_cmd)
+
+
+def toggle_color() -> None:
+    """Interactive color/eyecandy toggle menu with fzf."""
+    with open("/etc/pacman.conf") as f:
+        lines = f.readlines()
+
+    has_color = any(line.strip() == "Color" for line in lines)
+    has_candy = any(line.strip() == "ILoveCandy" for line in lines)
+
+    items = [
+        f"{'Color':<20} {'[enabled]' if has_color else '[disabled]'}",
+        f"{'ILoveCandy':<20} {'[enabled]' if has_candy else '[disabled]'}",
+    ]
+
+    result = run_fzf(
+        items,
+        prompt='Color> ',
+        multi=True,
+        header='TAB to select, ENTER to toggle',
+    )
+
+    if not result or not result.selected:
+        return
+
+    for line in result.selected:
+        option = line.split()[0]
+        gpm.toggle_color(option)
+
+
 def main_menu() -> None:
     """Main menu for fzf interface."""
-    menu = [
-        'search-aur\tSearch AUR packages',
-        'search-sync\tSearch official repo packages',
-        'installed\tBrowse installed packages',
-    ]
+    import os
+
+    if os.geteuid() == 0:
+        menu = [
+            'repos\tToggle pacman.conf repositories',
+            'color\tToggle pacman color/eyecandy',
+        ]
+    else:
+        menu = [
+            'search-aur\tSearch AUR packages',
+            'search-sync\tSearch official repo packages',
+            'installed\tBrowse installed packages',
+        ]
 
     result = run_fzf(
         menu,
@@ -276,6 +340,10 @@ def main_menu() -> None:
         search_sync()
     elif choice == 'installed':
         search_installed()
+    elif choice == 'repos':
+        toggle_repos()
+    elif choice == 'color':
+        toggle_color()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -289,6 +357,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser('aur', help='Search AUR packages')
     subparsers.add_parser('sync', help='Search sync repo packages')
     subparsers.add_parser('installed', help='Browse installed packages')
+    subparsers.add_parser('repos', help='Toggle pacman.conf repositories')
 
     # Internal: fzf reload helper
     aur_reload = subparsers.add_parser('_aur')
@@ -309,6 +378,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         search_sync()
     elif args.command == 'installed':
         search_installed()
+    elif args.command == 'repos':
+        toggle_repos()
     elif args.command == '_aur':
         _aur_search_output(args.query)
 

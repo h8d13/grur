@@ -58,39 +58,7 @@ class SyncPackageEntry:
     version: str
     installed: bool = False
 
-# Eyecandy
 g.USE_COLOR = '--no-color' not in sys.argv
-if g.USE_COLOR:
-    try:
-        with open("/etc/pacman.conf") as f:
-            lines = f.readlines()
-    except PermissionError:
-        sys.exit("Run once as root to enable pacman color/eyecandy.")
-
-    has_color = any(line.strip() == "Color" for line in lines)
-    has_candy = any(line.strip() == "ILoveCandy" for line in lines)
-
-    new = []
-
-    for line in lines:
-        stripped = line.strip()
-
-        if stripped == "#Color" and not has_color:
-            new.append("Color\n")
-            continue
-
-        if stripped == "# Misc options" and not has_candy:
-            new.append(line)
-            new.append("ILoveCandy\n")
-            continue
-
-        new.append(line)
-
-    if has_color and has_candy:
-        pass
-    else:
-        with open("/etc/pacman.conf", "w") as f:
-            f.writelines(new)
 
 ARROW = '==>'
 def op_a(text):
@@ -181,6 +149,80 @@ def parse_sync_list(output: str) -> list[SyncPackageEntry]:
             installed = len(parts) > 3 and parts[3] == '[installed]'
             entries.append(SyncPackageEntry(repo=repo, name=name, version=version, installed=installed))
     return entries
+
+# Repository management
+def get_repos() -> list[tuple[str, bool]]:
+    """Return list of (repo_name, enabled) tuples from pacman.conf."""
+    repos = []
+    with open("/etc/pacman.conf") as f:
+        for line in f:
+            match = re.match(r'^(#?)\s*\[([^\]]+)\]', line.strip())
+            if match and match.group(2) not in ('options', 'custom'):
+                repos.append((match.group(2), not match.group(1)))
+    return repos
+
+def toggle_repo(repo_name: str) -> None:
+    """Toggle a repository on/off in pacman.conf."""
+    with open("/etc/pacman.conf") as f:
+        lines = f.readlines()
+
+    new = []
+    skip_include = False
+    for line in lines:
+        stripped = line.strip()
+
+        # Handle Include line after repo toggle
+        if skip_include:
+            skip_include = False
+            if 'Include' in stripped:
+                if stripped.startswith('#'):
+                    new.append(re.sub(r'^#\s*', '', line))
+                else:
+                    new.append('#' + line)
+                continue
+
+        match = re.match(r'^(#?)\s*\[([^\]]+)\]', stripped)
+        if match and match.group(2) == repo_name:
+            if match.group(1):  # Currently commented, enable it
+                new.append(re.sub(r'^#\s*', '', line))
+            else:  # Currently enabled, disable it
+                new.append('#' + line)
+            skip_include = True
+            continue
+
+        new.append(line)
+
+    with open("/etc/pacman.conf", "w") as f:
+        f.writelines(new)
+
+def toggle_color(option: str) -> None:
+    """Toggle Color or ILoveCandy in pacman.conf."""
+    with open("/etc/pacman.conf") as f:
+        lines = f.readlines()
+
+    new = []
+    for line in lines:
+        stripped = line.strip()
+
+        if option == 'Color':
+            if stripped == 'Color':
+                new.append('#Color\n')
+                continue
+            elif stripped == '#Color':
+                new.append('Color\n')
+                continue
+        elif option == 'ILoveCandy':
+            if stripped == 'ILoveCandy':
+                new.append('#ILoveCandy\n')
+                continue
+            elif stripped == '#ILoveCandy':
+                new.append('ILoveCandy\n')
+                continue
+
+        new.append(line)
+
+    with open("/etc/pacman.conf", "w") as f:
+        f.writelines(new)
 
 # Start actual functions
 def list_installed(parse: bool = False) -> list[InstalledPackageEntry] | str:
@@ -510,6 +552,17 @@ def build_parser() -> argparse.ArgumentParser:
         help='Do not remove orphaned dependencies'
     )
 
+    # repos - manage repositories
+    repos_parser = subparsers.add_parser(
+        'repos',
+        help='List or toggle pacman.conf repositories'
+    )
+    repos_parser.add_argument(
+        'toggle',
+        nargs='?',
+        help='Repository name to toggle on/off'
+    )
+
     return parser
 
 # parse with global flags
@@ -600,6 +653,15 @@ def main(argv=None) -> int:
 
         elif args.command == 'uninstall':
             remove_package(args.package, dependencies=not args.no_deps)
+
+        elif args.command == 'repos':
+            if args.toggle:
+                toggle_repo(args.toggle)
+            else:
+                op_a('listing repositories')
+                for name, enabled in get_repos():
+                    status = g.style('[enabled]', g.GREEN) if enabled else g.style('[disabled]', g.YELLOW)
+                    print(f"  {name:<20} {status}")
 
         else:
             parser.error(f'Unknown command: {args.command}')
