@@ -225,8 +225,8 @@ def search_sync() -> None:
 
 
 def search_installed() -> None:
-    # Search local
-    entries = gpm.list_all(local=True, parse=True)
+    """Interactive installed package browser with fzf."""
+    entries = gpm.list_installed(parse=True)
 
     items = []
     for e in entries:
