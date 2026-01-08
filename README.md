@@ -53,7 +53,7 @@ grur search <term>        # Search sync repos
 grur search -l <term>     # Search installed packages
 grur info <package>       # Show package info
 grur install <package>    # Install from sync repos
-grur uninstall <package>  # Remove package
+grur uninstall <package>  # Remove package or 'install pkg-'
 grur list                 # List installed packages
 grur list --sync          # List sync repo packages
 grur deps <package>       # Show dependency tree (pactree)

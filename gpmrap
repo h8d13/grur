@@ -477,6 +477,7 @@ def build_parser() -> argparse.ArgumentParser:
     # clean - clean package cache
     subparsers.add_parser(
         'clean',
+        aliases=['sif'],
         help='Clean old packages from cache (uses paccache -r)'
     )
 
@@ -624,7 +625,7 @@ def main(argv=None) -> int:
         elif args.command == 'check':
             check_updates()
 
-        elif args.command == 'clean':
+        elif args.command in ('clean', 'sif'):
             clean_packages()
 
         elif args.command == 'deps':
