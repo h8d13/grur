@@ -164,11 +164,13 @@ def parse_sync_list(output: str) -> list[SyncPackageEntry]:
 def list_all(local=True, parse=False):
     """List packages. Local (-Ql) shows installed, sync (-Sl) shows repo packages."""
     if local:
-        op_a('listing installed packages')
         flags = "-Ql"
+        if not parse:
+            op_a('listing installed packages')
     else:
-        op_a('listing sync packages')
         flags = "-Sl"
+        if not parse:
+            op_a('listing sync packages')
 
     results = g.run_command(['pacman', flags], capture=True)
 

@@ -1,5 +1,9 @@
 #!/bin/sh
 case "$1" in
+  -m)
+    shift
+    exec python -B fzfui "$@"
+    ;;
   -a)
     shift
     exec python -B grimaur "$@"

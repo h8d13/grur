@@ -7,7 +7,12 @@
 API and **automatically falls back to the official git mirror when the endpoint is unavailable.** 
 It also helps you with all other common points of managing an Arch Linux installation.
 
-Wrapper logic: `grur` for common `pacman` operations `-h` for help and `grur -a` for AUR or `grimaur`.
+Wrapper logic: 
+```
+grur -m     # TUI Operations -> fzfui
+grur -a     # AUR Operations -> grimaur
+grur        # pac Operations -> gpmwrap
+```
 
 <br clear="left">
 
@@ -39,19 +44,19 @@ For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this e
 - `grimaur list` to see installed "foreign" packages recognized by pacman -Qm
 
 >[!NOTE]
-> You can use `grimaur fetch <package>` to inspect `PKGBUILD` and source code before manually installing using `makepkg` or similar.
+> You can use `grimaur fetch <package>` to info `PKGBUILD` and source code before manually installing using `makepkg` or similar.
 
-Even see it directly: `python grimaur inspect brave-bin --target PKGBUILD` Also accepts: `SRCINFO`
+Even see it directly: `python grimaur info brave-bin --target PKGBUILD` Also accepts: `SRCINFO`
 
-### Inspect & Install & Remove Packages
+### Info & Install & Remove Packages
 
-- `grimaur inspect <package> --full` Shows full depends
+- `grimaur info <package> --full` Shows full depends
 - `grimaur install <package>` clones the repo, resolves dependencies, builds with `makepkg`
    - Pass `--git-mirror` to skip AUR RPC
    - Pass `--use-ssh` use SSH instead of HTTPS
 - `grimaur uninstall <package>` to uninstall from pacman
    - Pass `--remove-cache` to delete cached files too
--  `grimaur install/fetch/inspect mypkg --repo-url <url>` to use custom URL instead
+-  `grimaur install/fetch/info mypkg --repo-url <url>` to use custom URL instead
 
 For example to build `archinstall` from source:
 

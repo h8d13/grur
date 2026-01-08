@@ -1,0 +1,331 @@
+#!/usr/bin/env python3
+"""fzfui: Interactive fzf interfaces for grimaur and gpmwrap.
+
+Provides fuzzy-finding interfaces for package management operations.
+
+## /* SPDX-FileCopyrightText: 2025
+# (O) Eihdran L. <hadean-eon-dev@proton.me>
+
+##  SPDX-License-Identifier: MIT */
+
+Requirements: fzf, grimaur, gpmwrap
+"""
+from __future__ import annotations
+
+import argparse
+import subprocess
+import sys
+from collections.abc import Sequence
+from dataclasses import dataclass
+from importlib.machinery import SourceFileLoader
+from importlib.util import module_from_spec, spec_from_loader
+from pathlib import Path
+
+# Load grimaur
+file_path = f'{Path(__file__).parent}/grimaur'
+s = spec_from_loader('grimaur', SourceFileLoader('grimaur', file_path), origin=file_path)
+g = module_from_spec(s)
+sys.modules['grimaur'] = g
+s.loader.exec_module(g)
+
+# Load gpmwrap
+file_path_gpm = f'{Path(__file__).parent}/gpmrap'
+s_gpm = spec_from_loader('gpmwrap', SourceFileLoader('gpmwrap', file_path_gpm), origin=file_path_gpm)
+gpm = module_from_spec(s_gpm)
+sys.modules['gpmwrap'] = gpm
+s_gpm.loader.exec_module(gpm)
+
+g.USE_COLOR = sys.stdout.isatty()
+
+
+@dataclass
+class FzfResult:
+    """Result from fzf selection."""
+    selected: list[str]
+    query: str
+    key: str | None = None
+
+
+def run_fzf(
+    items: Sequence[str],
+    *,
+    prompt: str = '> ',
+    multi: bool = False,
+    preview: str | None = None,
+    header: str | None = None,
+    bind: dict[str, str] | None = None,
+) -> FzfResult | None:
+    """Run fzf with given items and options."""
+    cmd = ['fzf', '--prompt', prompt]
+
+    if multi:
+        cmd.append('--multi')
+    if preview:
+        cmd.extend(['--preview', preview])
+    if header:
+        cmd.extend(['--header', header])
+    if bind:
+        for key, action in bind.items():
+            cmd.extend(['--bind', f'{key}:{action}'])
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            input='\n'.join(items),
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        print(g.style('fzf not found. Install fzf to use this tool.', g.YELLOW), file=sys.stderr)
+        return None
+
+    if proc.returncode == 130:  # Cancelled
+        return None
+
+    lines = proc.stdout.strip().split('\n')
+    if not lines or lines == ['']:
+        return None
+
+    selected = [line for line in lines if line]
+
+    return FzfResult(selected=selected, query='', key=None)
+
+
+def _format_aur_results(results) -> list[str]:
+    """Format AUR search results for fzf display."""
+    items = []
+    for r in results:
+        installed = '[installed]' if r.installed else ''
+        items.append(f"{r.name:<35} {r.version or '':<15} {installed}")
+    return items
+
+
+def _aur_search_output(query: str) -> None:
+    """Output AUR search results (for fzf reload)."""
+    if len(query) < 2:
+        return
+    results = g.search_packages(query, regex=None, needle=query.lower(), limit=100)
+    for line in _format_aur_results(results):
+        print(line)
+
+
+def _get_aur_packages_alphabetical(limit: int = 100) -> list[str]:
+    """Get first N AUR packages alphabetically (names only)."""
+    try:
+        output = g.run_command(
+            ["git", "ls-remote", "--heads", g.get_aur_remote()],
+            capture=True
+        )
+    except g.PacAurGitError:
+        return []
+
+    packages = []
+    for line in str(output).splitlines():
+        if not line.strip():
+            continue
+        # Format: <sha>\trefs/heads/<package>
+        parts = line.split('\t')
+        if len(parts) == 2 and parts[1].startswith('refs/heads/'):
+            name = parts[1][len('refs/heads/'):]
+            packages.append(name)
+
+    packages.sort()
+    return packages[:limit]
+
+
+def search_aur() -> None:
+    """Interactive AUR package search with fzf."""
+    # Initial load - first 100 packages alphabetically
+    initial_packages = _get_aur_packages_alphabetical(100)
+    initial_items = [f"{name:<35}" for name in initial_packages]
+
+    script_path = Path(__file__).resolve()
+    grimaur_path = script_path.parent / 'grimaur'
+
+    cmd = [
+        'fzf',
+        '--prompt', 'AUR> ',
+        '--header', 'Type to search AUR, TAB to select, ENTER to install/remove',
+        '--multi',
+        '--bind', f'change:reload:python {script_path} _aur {{q}} 2>/dev/null || true',
+        '--preview', f'python {grimaur_path} info {{1}} --full 2>/dev/null || python {grimaur_path} info {{1}} --target PKGBUILD 2>/dev/null || python {grimaur_path} info {{1}} --target SRCINFO 2>/dev/null || echo "No info"',
+    ]
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            input='\n'.join(initial_items),
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        print(g.style('fzf not found.', g.YELLOW), file=sys.stderr)
+        return
+
+    if proc.returncode == 130 or not proc.stdout.strip():
+        return
+
+    selected = [line for line in proc.stdout.strip().split('\n') if line]
+    if not selected:
+        return
+
+    result = FzfResult(selected=selected, query='', key=None)
+
+    if not result or not result.selected:
+        return
+
+    installed_set = g.installed_package_set()
+    to_install = []
+    to_remove = []
+
+    for line in result.selected:
+        pkg = line.split()[0]
+        if pkg in installed_set:
+            to_remove.append(pkg)
+        else:
+            to_install.append(pkg)
+
+    for pkg in to_remove:
+        print(g.style(f'Removing: {pkg}', g.CYAN))
+        gpm.remove_package(pkg, dependencies=True)
+
+    for pkg in to_install:
+        print(g.style(f'Installing: {pkg}', g.CYAN))
+        try:
+            g.install_package(pkg, Path.home() / '.cache' / 'aurgit', refresh=False, noconfirm=False)
+        except g.PacAurGitError as e:
+            print(g.style(f'Error installing {pkg}: {e}', g.YELLOW), file=sys.stderr)
+
+
+def search_sync() -> None:
+    """Interactive sync repo package search with fzf."""
+    # Get all sync packages using gpmwrap's list_all
+    entries = gpm.list_all(local=False, parse=True)
+
+    items = []
+    for e in entries:
+        installed = '[installed]' if e.installed else ''
+        items.append(f"{e.name:<35} {e.repo:<12} {e.version:<20} {installed}")
+
+    result = run_fzf(
+        items,
+        prompt='Sync> ',
+        multi=True,
+        header='TAB to select, ENTER to toggle install/remove',
+        preview='pacman -Si {1} 2>/dev/null || echo "Loading..."',
+    )
+
+    if not result or not result.selected:
+        return
+
+    packages = [line.split()[0] for line in result.selected]
+
+    # Toggle based on installed state
+    installed_set = g.installed_package_set()
+    for pkg in packages:
+        if pkg in installed_set:
+            print(g.style(f'Removing: {pkg}', g.CYAN))
+            gpm.remove_package(pkg, dependencies=True)
+        else:
+            print(g.style(f'Installing: {pkg}', g.CYAN))
+            gpm.install_package(pkg)
+
+
+def search_installed() -> None:
+    """Interactive installed package browser with fzf."""
+    output = g.run_command(['pacman', '-Q'], capture=True)
+
+    items = []
+    for line in str(output).strip().splitlines():
+        parts = line.split()
+        if len(parts) >= 2:
+            items.append(f"{parts[0]:<35} {parts[1]}")
+
+    result = run_fzf(
+        items,
+        prompt='Installed> ',
+        multi=True,
+        header='TAB to select, ENTER to remove',
+        preview='pacman -Qi {1} 2>/dev/null',
+    )
+
+    if not result or not result.selected:
+        return
+
+    packages = [line.split()[0] for line in result.selected]
+
+    for pkg in packages:
+        print(g.style(f'Removing: {pkg}', g.CYAN))
+        gpm.remove_package(pkg, dependencies=True)
+
+
+def main_menu() -> None:
+    """Main menu for fzf interface."""
+    menu = [
+        'search-aur\tSearch AUR packages',
+        'search-sync\tSearch official repo packages',
+        'installed\tBrowse installed packages',
+    ]
+
+    result = run_fzf(
+        menu,
+        prompt='grur> ',
+        header='Select an action',
+    )
+
+    if not result or not result.selected:
+        return
+
+    choice = result.selected[0].split('\t')[0]
+
+    if choice == 'search-aur':
+        search_aur()
+    elif choice == 'search-sync':
+        search_sync()
+    elif choice == 'installed':
+        search_installed()
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog='fzfui',
+        description='Interactive fzf interfaces for package management'
+    )
+    subparsers = parser.add_subparsers(dest='command')
+
+    subparsers.add_parser('menu', help='Show main menu')
+    subparsers.add_parser('aur', help='Search AUR packages')
+    subparsers.add_parser('sync', help='Search sync repo packages')
+    subparsers.add_parser('installed', help='Browse installed packages')
+
+    # Internal: fzf reload helper
+    aur_reload = subparsers.add_parser('_aur')
+    aur_reload.add_argument('query', nargs='?', default='')
+
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.command is None or args.command == 'menu':
+        main_menu()
+    elif args.command == 'aur':
+        search_aur()
+    elif args.command == 'sync':
+        search_sync()
+    elif args.command == 'installed':
+        search_installed()
+    elif args.command == '_aur':
+        _aur_search_output(args.query)
+
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print(g.style('\nInterrupted by user', g.YELLOW), file=sys.stderr)
+        sys.exit(130)
