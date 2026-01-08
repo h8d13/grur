@@ -112,7 +112,7 @@ grur -a upgrade --refresh         # Force fresh pull of all packages
 > Useful for scripting on top of `grimaur`.
 
 ```bash
---dest-root <path>    # Build directory (default: ~/.cache/aurgit)
+--dest-root <path>    # Build directory useful for /tmp (default: ~/.cache/aurgit)
 --no-color            # Disable colored output
 --noconfirm           # Skip confirmation prompts
 --limit N             # Limit search results
