@@ -7,7 +7,7 @@
 API and **automatically falls back to the official git mirror when the endpoint is unavailable.** 
 It also helps you with all other common points of managing an Arch Linux installation.
 
-Wrapper logic: `grur` for common `pacman` operations `-h` for help VS `grur -a` for AUR ro `grimaur`.
+Wrapper logic: `grur` for common `pacman` operations `-h` for help and `grur -a` for AUR or `grimaur`.
 
 <br clear="left">
 
