@@ -2,7 +2,7 @@
 """gpmwrap: Wraps common pacman operations
 
 Uses grimaur's tools directly but aims to only be for direct management of a system
-Without thinking about the AUR.
+Without thinking about the AUR. It copies some ideas from Debian and added logic for pacman.
 
 ## /* SPDX-FileCopyrightText: 2025
 # (O) Eihdran L. <hadean-eon-dev@proton.me>
