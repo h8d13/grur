@@ -1,9 +1,9 @@
-# grur
+# grimaur
 
 <img align="left" src="./base/assets/grimoire_d.svg#gh-light-mode-only" width="80" alt="grur logo">
 <img align="left" src="./base/assets/grimoire_l.svg#gh-dark-mode-only" width="80" alt="grur logo">
 
-`grur` is a unified package management wrapper for Arch Linux that combines pacman operations, AUR package building, and an interactive TUI into a single tool.
+Grimaur or `grur` for short is a unified package management wrapper for Arch Linux that combines pacman operations, AUR package building, and an interactive TUI into a single tool. **With advanced features** like git fallback, ssh, maintenance tools, etc.
 
 <br clear="left">
 
