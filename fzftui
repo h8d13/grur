@@ -227,16 +227,18 @@ def search_sync() -> None:
 def search_installed() -> None:
     """Interactive installed package browser with fzf."""
     entries = gpm.list_installed(parse=True)
+    foreign = g.list_foreign_packages()
 
     items = []
     for e in entries:
-        items.append(f"{e.name:<35} {e.version}")
+        marker = ' [foreign]' if e.name in foreign else ''
+        items.append(f"{e.name:<35} {e.version}{marker}")
 
     result = run_fzf(
         items,
         prompt='Installed> ',
         multi=True,
-        header='TAB to select, ENTER to remove',
+        header='TAB to select, ENTER to remove. [foreign]=not in repos',
         preview='pacman -Qi {1} 2>/dev/null',
     )
 
