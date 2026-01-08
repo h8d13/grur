@@ -122,9 +122,13 @@ def sort_mirrors(
     country: str | None = None,
     save: str = '/etc/pacman.d/mirrorlist',
     sync_after: bool = True,
+    dry_run: bool = False,
 ):
     """Sort mirrors using reflector and optionally sync databases."""
-    op_a('sorting mirrors with reflector')
+    if dry_run:
+        op_a('sorting mirrors with reflector (dry run)')
+    else:
+        op_a('sorting mirrors with reflector')
 
     cmd = ['reflector']
 
@@ -136,13 +140,13 @@ def sort_mirrors(
         cmd.extend(['--sort', sort])
     if country:
         cmd.extend(['--country', country])
-    if save:
+    if save and not dry_run:
         cmd.extend(['--save', save])
 
     g.needs_sudo(cmd)
     g.run_command(cmd)
 
-    if sync_after:
+    if sync_after and not dry_run:
         sync_cmd = ['pacman', '-Sy']
         g.needs_sudo(sync_cmd)
         g.run_command(sync_cmd)
@@ -317,6 +321,11 @@ def build_parser() -> argparse.ArgumentParser:
         '--country', '-c',
         help='Filter by country (e.g., US, DE, FR)'
     )
+    mirrors_parser.add_argument(
+        '--dry-run', '-n',
+        action='store_true',
+        help='Print mirrors without saving to mirrorlist'
+    )
 
     # sync - sync package databases
     sync_parser = subparsers.add_parser(
@@ -451,8 +460,9 @@ def main(argv=None) -> int:
                 latest=args.latest,
                 sort=args.sort,
                 country=args.country,
+                dry_run=args.dry_run,
             )
-
+        # dest root is ignored
         elif args.command == 'sync':
             op_a('syncing system')
             g.update_packages(
