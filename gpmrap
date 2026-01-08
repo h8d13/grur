@@ -142,8 +142,8 @@ def sort_mirrors(
         cmd.extend(['--country', country])
     if save and not dry_run:
         cmd.extend(['--save', save])
+        g.needs_sudo(cmd)
 
-    g.needs_sudo(cmd)
     g.run_command(cmd)
 
     if sync_after and not dry_run:
