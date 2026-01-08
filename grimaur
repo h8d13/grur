@@ -1596,10 +1596,10 @@ def format_search_result(index: int, result: SearchResult) -> list[str]:
         line += f" {style('[' + ', '.join(meta_bits) + ']', DIM)}"
     lines = [line]
     if result.description:
-        # Limit description to 120 characters
+        # Limit description
         desc = result.description
-        if len(desc) > 120:
-            desc = desc[:117] + "..."
+        if len(desc) > 90:
+            desc = desc[:87] + "..."
         lines.append(f"    {style(desc, DIM)}")
     return lines
 
