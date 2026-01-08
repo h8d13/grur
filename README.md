@@ -32,7 +32,7 @@ cd grimaur-too
 
 ---
 
-## Pacman Operations (`grur`)
+## Pacman (`grur`)
 
 Standard pacman wrapper with simplified commands.
 
@@ -61,7 +61,7 @@ grur deps <package>       # Show dependency tree (pactree)
 
 ---
 
-## AUR Operations (`grur -a`)
+## AUR (`grur -a`)
 
 AUR helper that uses the RPC API with automatic fallback to the git mirror.
 
@@ -93,7 +93,7 @@ grur -a install <pkg> --repo-url <url>    # Build from custom git URL
 grur -a fetch <pkg> --repo-url <url>      # Fetch without installing
 ```
 
-Example - build archinstall from source:
+Example - build `archinstall` from source:
 ```bash
 grur -a install archinstall-latest --repo-url https://github.com/archlinux/archinstall
 ```
@@ -109,7 +109,7 @@ grur -a upgrade --refresh         # Force fresh pull of all packages
 
 ### Additional Options
 
-> Useful for scripting on top of `grimaur`.
+> Useful for scripting on top of or modifying.
 
 ```bash
 --dest-root <path>    # Build directory useful for /tmp (default: ~/.cache/aurgit)
@@ -121,9 +121,9 @@ grur -a upgrade --refresh         # Force fresh pull of all packages
 
 ---
 
-## Interactive TUI (`grur -m`)
+## TUI (`grur -m`)
 
-Fuzzy-finding interface powered by fzf.
+> Fuzzy-finding interface powered by fzf.
 
 ```bash
 grur -m                # Main menu
