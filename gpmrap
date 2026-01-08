@@ -419,6 +419,7 @@ def main(argv=None) -> int:
             )
 
         elif args.command == 'sync':
+            op_a('syncing system')
             g.update_packages(
                 Path.home() / '.cache' / 'aurgit',
                 refresh=False,

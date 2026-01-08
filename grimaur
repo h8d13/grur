@@ -1272,7 +1272,6 @@ def update_packages(
 
         needs_sudo(cmd)
 
-        print(style("Updating system packages first...", CYAN))
         try:
             run_command(cmd)
             invalidate_installed_cache()
