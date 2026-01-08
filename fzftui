@@ -40,7 +40,6 @@ g.USE_COLOR = sys.stdout.isatty()
 
 @dataclass
 class FzfResult:
-    """Result from fzf selection."""
     selected: list[str]
     query: str
     key: str | None = None
@@ -92,7 +91,6 @@ def run_fzf(
 
 
 def _format_aur_results(results) -> list[str]:
-    """Format AUR search results for fzf display."""
     items = []
     for r in results:
         installed = '[installed]' if r.installed else ''
@@ -101,7 +99,6 @@ def _format_aur_results(results) -> list[str]:
 
 
 def _aur_search_output(query: str) -> None:
-    """Output AUR search results (for fzf reload)."""
     if len(query) < 2:
         return
     results = g.search_packages(query, regex=None, needle=query.lower(), limit=100)
@@ -110,7 +107,7 @@ def _aur_search_output(query: str) -> None:
 
 
 def _get_aur_packages_alphabetical(limit: int = 100) -> list[str]:
-    """Get first N AUR packages alphabetically (names only)."""
+    # Sorting like aur page
     try:
         output = g.run_command(
             ["git", "ls-remote", "--heads", g.get_aur_remote()],
@@ -134,7 +131,6 @@ def _get_aur_packages_alphabetical(limit: int = 100) -> list[str]:
 
 
 def search_aur() -> None:
-    """Interactive AUR package search with fzf."""
     # Initial load - first 100 packages alphabetically
     initial_packages = _get_aur_packages_alphabetical(100)
     initial_items = [f"{name:<35}" for name in initial_packages]
@@ -198,7 +194,6 @@ def search_aur() -> None:
 
 
 def search_sync() -> None:
-    """Interactive sync repo package search with fzf."""
     # Get all sync packages using gpmwrap's list_all
     entries = gpm.list_all(local=False, parse=True)
 
@@ -224,22 +219,18 @@ def search_sync() -> None:
     installed_set = g.installed_package_set()
     for pkg in packages:
         if pkg in installed_set:
-            print(g.style(f'Removing: {pkg}', g.CYAN))
             gpm.remove_package(pkg, dependencies=True)
         else:
-            print(g.style(f'Installing: {pkg}', g.CYAN))
             gpm.install_package(pkg)
 
 
 def search_installed() -> None:
-    """Interactive installed package browser with fzf."""
-    output = g.run_command(['pacman', '-Q'], capture=True)
+    # Search local
+    entries = gpm.list_all(local=True, parse=True)
 
     items = []
-    for line in str(output).strip().splitlines():
-        parts = line.split()
-        if len(parts) >= 2:
-            items.append(f"{parts[0]:<35} {parts[1]}")
+    for e in entries:
+        items.append(f"{e.name:<35} {e.version}")
 
     result = run_fzf(
         items,
@@ -255,7 +246,6 @@ def search_installed() -> None:
     packages = [line.split()[0] for line in result.selected]
 
     for pkg in packages:
-        print(g.style(f'Removing: {pkg}', g.CYAN))
         gpm.remove_package(pkg, dependencies=True)
 
 
