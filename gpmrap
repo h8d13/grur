@@ -461,7 +461,7 @@ def main(argv=None) -> int:
         elif args.command == 'sync':
             op_a('syncing system')
             g.update_packages(
-                Path.home() / '.cache' / 'aurgit',
+                dest_root=Path,
                 refresh=False,
                 noconfirm=args.noconfirm,
                 update_system=True,
@@ -480,7 +480,7 @@ def main(argv=None) -> int:
             else:
                 op_a('upgrading system')
             g.update_packages(
-                Path.home() / '.cache' / 'aurgit',
+                dest_root=Path,
                 refresh=False,
                 noconfirm=args.noconfirm,
                 update_system=True,

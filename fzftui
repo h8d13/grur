@@ -188,7 +188,7 @@ def search_aur() -> None:
     for pkg in to_install:
         print(g.style(f'Installing: {pkg}', g.CYAN))
         try:
-            g.install_package(pkg, Path.home() / '.cache' / 'aurgit', refresh=False, noconfirm=False)
+            g.install_package(pkg, dest_root=Path, refresh=False, noconfirm=False)
         except g.PacAurGitError as e:
             print(g.style(f'Error installing {pkg}: {e}', g.YELLOW), file=sys.stderr)
 
