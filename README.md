@@ -3,8 +3,11 @@
 <img align="left" src="./base/assets/grimoire_d.svg#gh-light-mode-only" width="80" alt="grimaur logo">
 <img align="left" src="./base/assets/grimoire_l.svg#gh-dark-mode-only" width="80" alt="grimaur logo">
 
-`grimaur` is a lightweight AUR helper that searches, builds, and updates AUR packages. It uses the AUR RPC
-API and **automatically falls back to the official git mirror when the endpoint is unavailable.**
+`grimaur` or `grur` for short is a lightweight AUR helper that searches, builds, and updates AUR packages. It uses the AUR RPC
+API and **automatically falls back to the official git mirror when the endpoint is unavailable.** 
+It also helps you with all other common points of managing an Arch Linux installation.
+
+You can also use our wrapper: `grur` for common `pacman` operations `-h` for help VS `grur -a` for AUR or `grimaur`.
 
 <br clear="left">
 
@@ -18,30 +21,15 @@ For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this e
 ### Deps
 `sudo pacman -S --needed git base-devel pacman-contrib reflector`
 
-### Directly from the AUR
-   ```bash
-   git clone https://aur.archlinux.org/grimaur-git.git
-   cd grimaur-git
-   makepkg -si
-   ```
-
-### From the git mirror
-   ```bash
-   git clone --branch grimaur-git --single-branch https://github.com/archlinux/aur.git grimaur-git
-   cd grimaur-git
-   makepkg -si
-   ```
 ### From Python directly
    ```bash
-   git clone https://github.com/ryk4rd/grimaur
-   cd grimaur
-   python grimaur <command>
+   git clone url
+   cd grimaur-too
+   ./grur <command>
    ```
 
 > [!TIP] 
 > You can add grimaur to your `.local/bin` => `$PATH` or add it to `alias` lines.
-
-You can also use our wrapper: `grur` for common `pacman` operations `-h` for help + `grur -a` for AUR.
 
 ## Usage
 ### Search Packages
