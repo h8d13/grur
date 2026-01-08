@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """gpmwrap: Wraps common pacman operations
 
-By default we require `pacman-contrib` to be installed for simpler management.
+Uses grimaur's tools directly but aims to only be for direct management of a system
+Without thinking about the AUR.
 
 ## /* SPDX-FileCopyrightText: 2025
 # (O) Eihdran L. <hadean-eon-dev@proton.me>
 
 ##  SPDX-License-Identifier: MIT */
 
-Requirements: pacman, pacman-conmtrib, reflector, sudo/root
+Requirements: pacman, pacman-contrib, reflector, sudo/root
 """
 import sys
 from importlib.util import spec_from_loader, module_from_spec
@@ -248,6 +249,7 @@ def remove_package(package, dependencies=True):
     g.needs_sudo(cmd)
     try:
         g.run_command(cmd, check=True)
+        print(g.style(f'Sucessfully uninstalled {package}', g.GREEN), file=sys.stderr)
     except g.PacAurGitError as e:
         msg = str(e)
         print(g.style(msg, g.YELLOW), file=sys.stderr)
