@@ -1947,7 +1947,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     install_parser.add_argument("--repo-url", help="Clone from custom Git URL")
 
-    remove_parser = subparsers.add_parser("remove", help="Remove an installed package")
+    remove_parser = subparsers.add_parser("uninstall", help="Remove an installed package")
     remove_parser.add_argument("package", help="Package name to remove")
     remove_parser.add_argument(
         "--noconfirm", action="store_true", help="Pass --noconfirm to pacman"
@@ -2059,7 +2059,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     commands = {
         "fetch",
         "install",
-        "remove",
+        "uninstall",
         "update",
         "search",
         "inspect",
@@ -2144,7 +2144,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 preinstalled_official=preinstalled_official,
                 repo_url=repo_url,
             )
-        elif args.command == "remove":
+        elif args.command == "uninstall":
             remove_package(
                 args.package,
                 dest_root,
