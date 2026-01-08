@@ -1952,8 +1952,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--noconfirm", action="store_true", help="Pass --noconfirm to pacman"
     )
     remove_parser.add_argument(
-        "--remove-cache",
+        "--cache",
         action="store_true",
+        dest="remove_cache",
         help="Also remove the cached clone from dest-root",
     )
 
