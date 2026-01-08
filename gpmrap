@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """gpmwrap: Wraps common pacman operations
 
-Uses grimaur's tools directly but aims to only be for direct management of a system
+Uses grimaur's tools directly but aims to only be for direct management of a system pkgs
 Without thinking about the AUR. It copies some ideas from Debian and added logic for pacman.
 
 Notably terms 'install' and 'uninstall' but also support for 'install package-' which is uninstall.
