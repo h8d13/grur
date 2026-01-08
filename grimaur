@@ -1958,13 +1958,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     update_parser = subparsers.add_parser(
-        "update",
+        "upgrade",
         help="Upgrade installed foreign packages by rebuilding them from the mirror",
     )
     update_parser.add_argument(
         "packages",
         nargs="*",
-        help="Specific foreign package names to update (default: all from pacman -Qm)",
+        help="Specific foreign package names to upgrade (default: all from pacman -Qm)",
     )
     update_parser.add_argument(
         "--noconfirm", action="store_true", help="Pass --noconfirm to pacman/makepkg"
@@ -1977,28 +1977,7 @@ def build_parser() -> argparse.ArgumentParser:
     update_parser.add_argument(
         "--global",
         action="store_true",
-        help="Update official repositories with pacman -Syu before updating AUR packages",
-    )
-    global_group = update_parser.add_mutually_exclusive_group()
-    update_parser.add_argument(
-        "--system-only",
-        action="store_true",
-        help="With --global, only update system packages and skip AUR updates",
-    )
-    global_group.add_argument(
-        "--index",
-        action="store_true",
-        help="With --global, only sync package databases (pacman -Sy)",
-    )
-    global_group.add_argument(
-        "--download",
-        action="store_true",
-        help="With --global, download updates without installing (pacman -Syuw)",
-    )
-    global_group.add_argument(
-        "--install",
-        action="store_true",
-        help="With --global, install already-downloaded packages (pacman -Su)",
+        help="Sync official repositories (pacman -Syu) before updating AUR packages",
     )
     search_parser = subparsers.add_parser(
         "search", help="Search packages via the configured backend"
@@ -2031,7 +2010,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     inspect_parser = subparsers.add_parser(
-        "inspect", help="Show PKGBUILD or dependency information"
+        "info", help="Show PKGBUILD or dependency information"
     )
     inspect_parser.add_argument("package", help="Package name to inspect")
     inspect_parser.add_argument(
@@ -2059,9 +2038,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "fetch",
         "install",
         "uninstall",
-        "update",
+        "upgrade",
         "search",
-        "inspect",
+        "info",
         "complete",
         "list",
     }
@@ -2150,7 +2129,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 noconfirm=args.noconfirm,
                 remove_cache=args.remove_cache,
             )
-        elif args.command == "update":
+        elif args.command == "upgrade":
             update_packages(
                 dest_root,
                 refresh=True,
@@ -2158,10 +2137,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 include_devel=bool(getattr(args, "devel", False)),
                 update_system=bool(getattr(args, "global", False)),
                 targets=args.packages or None,
-                system_only=bool(getattr(args, "system_only", False)),
-                index_only=bool(getattr(args, "index", False)),
-                download_only=bool(getattr(args, "download", False)),
-                install_only=bool(getattr(args, "install", False)),
             )
         elif args.command == "search":
             regex_obj: re.Pattern | None = None
@@ -2237,7 +2212,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             for name in names:
                 print(name)
             return 0
-        elif args.command == "inspect":
+        elif args.command == "info":
             inspect_package(
                 args.package,
                 dest_root,
