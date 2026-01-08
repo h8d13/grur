@@ -11,7 +11,7 @@ Wrapper logic:
 ```
 grur -m     # TUI Operations -> fzfui
 grur -a     # AUR Operations -> grimaur
-grur        # pac Operations -> gpmwrap
+grur        # PAC Operations -> gpmwrap
 ```
 
 <br clear="left">
