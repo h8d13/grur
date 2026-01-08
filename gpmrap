@@ -34,10 +34,31 @@ g = module_from_spec(s)
 sys.modules['grimaur'] = g
 
 # Load and call from source file
+# Allows us to use grimaur like an API without using .py extensions
 s.loader.exec_module(g)
 
-g.USE_COLOR = '--no-color' not in sys.argv
+@dataclass
+class LocalFileEntry:
+    """Model for pacman -Ql output: package_name /path/to/file"""
+    name: str
+    file: str
 
+@dataclass
+class InstalledPackageEntry:
+    """Model for pacman -Q output: package_name version"""
+    name: str
+    version: str
+
+@dataclass
+class SyncPackageEntry:
+    """Model for pacman -Sl output: repo package_name version [installed]"""
+    repo: str
+    name: str
+    version: str
+    installed: bool = False
+
+# Eyecandy
+g.USE_COLOR = '--no-color' not in sys.argv
 if g.USE_COLOR:
     try:
         with open("/etc/pacman.conf") as f:
@@ -93,7 +114,7 @@ def show_dependencies(package):
     op_a('showing deps')
     g.run_command(['pactree', package])
 
-
+# reflector
 def sort_mirrors(
     protocol: str = 'https',
     latest: int = 20,
@@ -126,27 +147,7 @@ def sort_mirrors(
         g.needs_sudo(sync_cmd)
         g.run_command(sync_cmd)
 
-@dataclass
-class LocalFileEntry:
-    """Model for pacman -Ql output: package_name /path/to/file"""
-    name: str
-    file: str
-
-@dataclass
-class InstalledPackageEntry:
-    """Model for pacman -Q output: package_name version"""
-    name: str
-    version: str
-
-@dataclass
-class SyncPackageEntry:
-    """Model for pacman -Sl output: repo package_name version [installed]"""
-    repo: str
-    name: str
-    version: str
-    installed: bool = False
-
-
+# Helpers
 def parse_local_files(output: str) -> list[LocalFileEntry]:
     """Parse pacman -Ql output into structured entries."""
     entries = []
@@ -156,7 +157,6 @@ def parse_local_files(output: str) -> list[LocalFileEntry]:
             entries.append(LocalFileEntry(name=parts[0], file=parts[1]))
     return entries
 
-
 def parse_installed_list(output: str) -> list[InstalledPackageEntry]:
     """Parse pacman -Q output into structured entries."""
     entries = []
@@ -165,7 +165,6 @@ def parse_installed_list(output: str) -> list[InstalledPackageEntry]:
         if len(parts) >= 2:
             entries.append(InstalledPackageEntry(name=parts[0], version=parts[1]))
     return entries
-
 
 def parse_sync_list(output: str) -> list[SyncPackageEntry]:
     """Parse pacman -Sl output into structured entries."""
@@ -178,7 +177,7 @@ def parse_sync_list(output: str) -> list[SyncPackageEntry]:
             entries.append(SyncPackageEntry(repo=repo, name=name, version=version, installed=installed))
     return entries
 
-
+# Start actual functions
 def list_installed(parse: bool = False) -> list[InstalledPackageEntry] | str:
     """List installed packages with versions (-Q)."""
     if not parse:
@@ -188,7 +187,6 @@ def list_installed(parse: bool = False) -> list[InstalledPackageEntry] | str:
         return parse_installed_list(str(results))
     print(results)
     return str(results)
-
 
 def list_all(local=True, parse=False):
     """List package files (-Ql) or sync packages (-Sl)."""
@@ -212,8 +210,6 @@ def list_all(local=True, parse=False):
     print(results)
     return results
 
-#list_all(local=True)
-
 def search_packages(package, local=False, exact=False):
 
     if local:
@@ -236,8 +232,6 @@ def search_packages(package, local=False, exact=False):
         return results
     except g.PacAurGitError:
         print(f"Package '{package}' was not found.")
-
-#search_packages('python', local=True, exact=False)
 
 def inspect_package(package, local=False):
 
@@ -268,7 +262,6 @@ def install_package(package):
         msg = str(e)
         print(g.style(msg, g.YELLOW), file=sys.stderr)
 
-
 def remove_package(package, dependencies=True):
 
     op_a(f'uninstalling {package}')
@@ -285,7 +278,7 @@ def remove_package(package, dependencies=True):
         msg = str(e)
         print(g.style(msg, g.YELLOW), file=sys.stderr)
 
-
+# Main execution flow
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog='gpmwrap',
@@ -439,7 +432,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     return parser
 
-
+# parse with global flags
 def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -534,7 +527,7 @@ def main(argv=None) -> int:
 
     return 0
 
-
+# handle kb exit and errors above
 if __name__ == '__main__':
     try:
         sys.exit(main())
