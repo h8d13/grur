@@ -1,0 +1,10 @@
+#!/bin/sh
+case "$1" in
+  -o)
+    shift
+    exec python -B gpmrap "$@"
+    ;;
+  *)
+    exec python -B grimaur "$@"
+    ;;
+esac

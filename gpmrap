@@ -1,0 +1,487 @@
+#!/usr/bin/env python3
+"""gpmwrap: Wraps common pacman operations
+
+By default we require `pacman-contrib` to be installed for simpler management.
+
+## /* SPDX-FileCopyrightText: 2025
+# (O) Eihdran L. <hadean-eon-dev@proton.me>
+
+##  SPDX-License-Identifier: MIT */
+
+Requirements: pacman, pacman-conmtrib, reflector, sudo/root
+"""
+import sys
+from importlib.util import spec_from_loader, module_from_spec
+from importlib.machinery import SourceFileLoader
+from pathlib import Path
+from dataclasses import dataclass
+import argparse
+
+# Dirty python trick
+file_name = 'grimaur'
+file_path = f'{Path.cwd()}/{file_name}'
+
+s = spec_from_loader(
+            file_name,
+            SourceFileLoader(file_name, file_path),
+            origin=file_path
+        )
+
+g = module_from_spec(s)
+sys.modules['grimaur'] = g
+
+# Load and call from source file
+s.loader.exec_module(g)
+
+g.USE_COLOR = True
+
+if g.USE_COLOR:
+    try:
+        with open("/etc/pacman.conf") as f:
+            lines = f.readlines()
+    except PermissionError:
+        sys.exit("Run once as root to enable pacman color/eyecandy.")
+
+    has_color = any(line.strip() == "Color" for line in lines)
+    has_candy = any(line.strip() == "ILoveCandy" for line in lines)
+
+    new = []
+
+    for line in lines:
+        stripped = line.strip()
+
+        if stripped == "#Color" and not has_color:
+            new.append("Color\n")
+            continue
+
+        if stripped == "# Misc options" and not has_candy:
+            new.append(line)
+            new.append("ILoveCandy\n")
+            continue
+
+        new.append(line)
+
+    if has_color and has_candy:
+        pass
+    else:
+        with open("/etc/pacman.conf", "w") as f:
+            f.writelines(new)
+
+ARROW = '==>'
+def op_a(text):
+    print(f"{g.style(ARROW, g.GREEN)} {text}...")
+
+# pacman-contrib related
+def check_updates():
+    op_a('checking updates')
+    try:
+        g.run_command(['checkupdates'])
+    except g.PacAurGitError as e:
+        if "exit code 2" in str(e):
+            op_a('system up to date')
+        else:
+            raise
+
+def clean_packages():
+    op_a('cleaning packages')
+    g.run_command(['paccache', '-r'])
+
+def show_dependencies(package):
+    op_a('showing deps')
+    g.run_command(['pactree', package])
+
+
+def sort_mirrors(
+    protocol: str = 'https',
+    latest: int = 20,
+    sort: str = 'rate',
+    country: str | None = None,
+    save: str = '/etc/pacman.d/mirrorlist',
+    sync_after: bool = True,
+):
+    """Sort mirrors using reflector and optionally sync databases."""
+    op_a('sorting mirrors with reflector')
+
+    cmd = ['reflector']
+
+    if protocol:
+        cmd.extend(['--protocol', protocol])
+    if latest:
+        cmd.extend(['--latest', str(latest)])
+    if sort:
+        cmd.extend(['--sort', sort])
+    if country:
+        cmd.extend(['--country', country])
+    if save:
+        cmd.extend(['--save', save])
+
+    g.needs_sudo(cmd)
+    g.run_command(cmd)
+
+    if sync_after:
+        sync_cmd = ['pacman', '-Sy']
+        g.needs_sudo(sync_cmd)
+        g.run_command(sync_cmd)
+
+@dataclass
+class LocalPackageEntry:
+    """Model for pacman -Ql output: package_name /path/to/file"""
+    name: str
+    file: str
+
+@dataclass
+class SyncPackageEntry:
+    """Model for pacman -Sl output: repo package_name version [installed]"""
+    repo: str
+    name: str
+    version: str
+    installed: bool = False
+
+
+def parse_local_list(output: str) -> list[LocalPackageEntry]:
+    """Parse pacman -Ql output into structured entries."""
+    entries = []
+    for line in output.strip().splitlines():
+        parts = line.split(None, 1)
+        if len(parts) == 2:
+            entries.append(LocalPackageEntry(name=parts[0], file=parts[1]))
+    return entries
+
+
+def parse_sync_list(output: str) -> list[SyncPackageEntry]:
+    """Parse pacman -Sl output into structured entries."""
+    entries = []
+    for line in output.strip().splitlines():
+        parts = line.split()
+        if len(parts) >= 3:
+            repo, name, version = parts[0], parts[1], parts[2]
+            installed = len(parts) > 3 and parts[3] == '[installed]'
+            entries.append(SyncPackageEntry(repo=repo, name=name, version=version, installed=installed))
+    return entries
+
+
+def list_all(local=True, parse=False):
+    """List packages. Local (-Ql) shows installed, sync (-Sl) shows repo packages."""
+    if local:
+        op_a('listing installed packages')
+        flags = "-Ql"
+    else:
+        op_a('listing sync packages')
+        flags = "-Sl"
+
+    results = g.run_command(['pacman', flags], capture=True)
+
+    if parse:
+        if local:
+            return parse_local_list(str(results))
+        else:
+            return parse_sync_list(str(results))
+
+    print(results)
+    return results
+
+#list_all(local=True)
+
+def search_packages(package, local=False, exact=False):
+
+    if local:
+        # -Q    = installed package exact returns single line
+        # -Qs   = installed packages name | descriptions matches returns 2 lines per
+        flag = '-Q' if exact else '-Qs'
+        op_a(f'searching installed packages for {package}')
+    else:
+        # -Ss   = Search sync dbs returns 2 lines per
+        flag = '-Ss'
+        op_a(f'searching sync repos for {package}')
+
+    cmd = ['pacman', flag]
+
+    cmd.append(package)
+
+    try:
+        results = g.run_command(cmd, capture=True)
+        print(results)
+        return results
+    except g.PacAurGitError:
+        print(f"Package '{package}' was not found.")
+
+#search_packages('python', local=True, exact=False)
+
+def inspect_package(package, local=False):
+
+    if local:
+        op_a(f'inspecting installed {package}')
+        cmd = ['pacman', '-Qi', package]
+    else:
+        op_a(f'inspecting sync {package}')
+        cmd = ['pacman', '-Si', package]
+
+    try:
+        results = g.run_command(cmd, capture=True)
+        print(results)
+    except g.PacAurGitError as e:
+        msg = str(e)
+        print(g.style(msg, g.YELLOW), file=sys.stderr)
+
+def install_package(package):
+
+    op_a(f'installing {package}')
+    cmd = ['pacman', '-S', package]
+
+    g.needs_sudo(cmd)
+    try:
+        g.run_command(cmd, check=True)
+        print(g.style(f'Sucessfully installed {package}', g.GREEN), file=sys.stderr)
+    except g.PacAurGitError as e:
+        msg = str(e)
+        print(g.style(msg, g.YELLOW), file=sys.stderr)
+
+
+def remove_package(package, dependencies=True):
+
+    op_a(f'uninstalling {package}')
+    if dependencies:
+        cmd = ['pacman', '-Rns', package]
+    else:
+        cmd = ['pacman', '-R', package]
+
+    g.needs_sudo(cmd)
+    try:
+        g.run_command(cmd, check=True)
+    except g.PacAurGitError as e:
+        msg = str(e)
+        print(g.style(msg, g.YELLOW), file=sys.stderr)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog='gpmwrap',
+        description='Wrapper for common pacman operations (requires pacman-contrib)'
+    )
+    parser.add_argument(
+        '--no-color',
+        action='store_true',
+        help='Disable colored output',
+    )
+    subparsers = parser.add_subparsers(dest='command')
+
+    # mirrors - sort mirrors with reflector
+    mirrors_parser = subparsers.add_parser(
+        'mirrors',
+        help='Sort mirrors using reflector'
+    )
+    mirrors_parser.add_argument(
+        '--protocol', '-p',
+        default='https',
+        help='Mirror protocol (default: https)'
+    )
+    mirrors_parser.add_argument(
+        '--latest', '-l',
+        type=int,
+        default=20,
+        help='Number of latest mirrors to use (default: 20)'
+    )
+    mirrors_parser.add_argument(
+        '--sort', '-s',
+        default='rate',
+        choices=['rate', 'age', 'score', 'country'],
+        help='Sort method (default: rate)'
+    )
+    mirrors_parser.add_argument(
+        '--country', '-c',
+        help='Filter by country (e.g., US, DE, FR)'
+    )
+
+    # sync - sync package databases
+    sync_parser = subparsers.add_parser(
+        'sync',
+        help='Sync package databases (pacman -Sy)'
+    )
+    sync_parser.add_argument(
+        '--noconfirm',
+        action='store_true',
+        help='Do not ask for confirmation'
+    )
+
+    # upgrade - full system upgrade
+    upgrade_parser = subparsers.add_parser(
+        'upgrade',
+        help='Full system upgrade (pacman -Syu)'
+    )
+    upgrade_parser.add_argument(
+        '--noconfirm',
+        action='store_true',
+        help='Do not ask for confirmation'
+    )
+
+    # check - check for updates
+    subparsers.add_parser(
+        'check',
+        help='Check for available updates (uses checkupdates from pacman-contrib)'
+    )
+
+    # clean - clean package cache
+    subparsers.add_parser(
+        'clean',
+        help='Clean old packages from cache (uses paccache -r)'
+    )
+
+    # deps - show dependency tree
+    deps_parser = subparsers.add_parser(
+        'deps',
+        help='Show dependency tree for a package (uses pactree)'
+    )
+    deps_parser.add_argument('package', help='Package name to show dependencies for')
+
+    # list - list packages
+    list_parser = subparsers.add_parser(
+        'list',
+        help='List packages and their files'
+    )
+    list_parser.add_argument(
+        '--sync', '-s',
+        action='store_true',
+        help='List from sync repos instead of installed packages'
+    )
+
+    # search - search packages
+    search_parser = subparsers.add_parser(
+        'search',
+        help='Search for packages'
+    )
+    search_parser.add_argument('package', help='Package name or pattern to search')
+    search_group = search_parser.add_mutually_exclusive_group()
+    search_group.add_argument(
+        '--local', '-l',
+        action='store_true',
+        help='Search installed packages (fuzzy match)'
+    )
+    search_group.add_argument(
+        '--exact', '-e',
+        action='store_true',
+        help='Exact match on installed packages'
+    )
+
+    # info - show package info
+    info_parser = subparsers.add_parser(
+        'info',
+        help='Show detailed package information'
+    )
+    info_parser.add_argument('package', help='Package name to inspect')
+    info_parser.add_argument(
+        '--local', '-l',
+        action='store_true',
+        help='Query installed package instead of sync repos'
+    )
+
+    # install - install package
+    install_parser = subparsers.add_parser(
+        'install',
+        help='Install a package from sync repos'
+    )
+    install_parser.add_argument('package', help='Package name to install')
+
+    # uninstall - remove package
+    uninstall_parser = subparsers.add_parser(
+        'uninstall',
+        help='Uninstall a package'
+    )
+    uninstall_parser.add_argument('package', help='Package name to uninstall')
+    uninstall_parser.add_argument(
+        '--no-deps',
+        action='store_true',
+        help='Do not remove orphaned dependencies'
+    )
+
+    return parser
+
+
+def main(argv=None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if getattr(args, 'no_color', False):
+        g.USE_COLOR = False
+
+    if args.command is None:
+        parser.print_help()
+        return 0
+
+    try:
+        if args.command == 'mirrors':
+            sort_mirrors(
+                protocol=args.protocol,
+                latest=args.latest,
+                sort=args.sort,
+                country=args.country,
+            )
+
+        elif args.command == 'sync':
+            g.update_packages(
+                Path.home() / '.cache' / 'aurgit',
+                refresh=False,
+                noconfirm=args.noconfirm,
+                update_system=True,
+                include_devel=False,
+                index_only=True,
+                system_only=True,
+            )
+
+        elif args.command == 'upgrade':
+            op_a('upgrading system')
+            g.update_packages(
+                Path.home() / '.cache' / 'aurgit',
+                refresh=False,
+                noconfirm=args.noconfirm,
+                update_system=True,
+                include_devel=False,
+                system_only=True,
+            )
+
+        elif args.command == 'check':
+            check_updates()
+
+        elif args.command == 'clean':
+            clean_packages()
+
+        elif args.command == 'deps':
+            show_dependencies(args.package)
+
+        elif args.command == 'list':
+            list_all(local=not args.sync)
+
+        elif args.command == 'search':
+            # --exact implies local
+            local = args.local or args.exact
+            search_packages(args.package, local=local, exact=args.exact)
+
+        elif args.command == 'info':
+            inspect_package(args.package, local=args.local)
+
+        elif args.command == 'install':
+            # pkg- syntax means uninstall (like apt)
+            if args.package.endswith('-'):
+                remove_package(args.package[:-1], dependencies=True)
+            else:
+                install_package(args.package)
+
+        elif args.command == 'uninstall':
+            remove_package(args.package, dependencies=not args.no_deps)
+
+        else:
+            parser.error(f'Unknown command: {args.command}')
+
+    except g.PacAurGitError as e:
+        print(g.style(f'error: {e}', g.YELLOW), file=sys.stderr)
+        return 1
+
+    return 0
+
+
+if __name__ == '__main__':
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print(g.style('\nInterrupted by user', g.YELLOW), file=sys.stderr)
+        sys.exit(130)
+
