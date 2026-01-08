@@ -34,7 +34,7 @@ sys.modules['grimaur'] = g
 # Load and call from source file
 s.loader.exec_module(g)
 
-g.USE_COLOR = True
+g.USE_COLOR = '--no-color' not in sys.argv
 
 if g.USE_COLOR:
     try:
