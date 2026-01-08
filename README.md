@@ -7,7 +7,7 @@
 API and **automatically falls back to the official git mirror when the endpoint is unavailable.** 
 It also helps you with all other common points of managing an Arch Linux installation.
 
-You can also use our wrapper: `grur` for common `pacman` operations `-h` for help VS `grur -a` for AUR or `grimaur`.
+Wrapper logic: `grur` for common `pacman` operations `-h` for help VS `grur -a` for AUR ro `grimaur`.
 
 <br clear="left">
 
@@ -23,13 +23,13 @@ For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this e
 
 ### From Python directly
    ```bash
-   git clone url
+   git clone <url>
    cd grimaur-too
    ./grur <command>
    ```
 
 > [!TIP] 
-> You can add grimaur to your `.local/bin` => `$PATH` or add it to `alias` lines.
+> You can add grimaur to your `.local/bin` => `$PATH` or add it to `alias` lines or to `/opt`
 
 ## Usage
 ### Search Packages
