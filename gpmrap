@@ -13,6 +13,7 @@ Notably terms 'install' and 'uninstall' but also support for 'install package-' 
 
 Requirements: pacman, pacman-contrib, reflector, sudo/root
 """
+import re
 import sys
 from importlib.util import spec_from_loader, module_from_spec
 from importlib.machinery import SourceFileLoader
@@ -227,20 +228,78 @@ def search_packages(package, local=False, exact=False, limit=None):
         op_a(f'searching sync repos for {package}')
 
     cmd = ['pacman', flag]
-
+    if g.USE_COLOR:
+        cmd.append('--color=always')
     cmd.append(package)
 
     try:
         results = g.run_command(cmd, capture=True)
         output = str(results)
-        if limit and limit > 0:
-            # pacman -Ss returns 2 lines per package (name+version, description)
-            lines = output.splitlines()
-            if not local or not exact:
-                # 2 lines per result
-                output = '\n'.join(lines[:limit * 2])
-            else:
-                output = '\n'.join(lines[:limit])
+        lines = output.splitlines()
+
+        # Sort results by relevance using grimaur's scoring
+        if not exact and len(lines) >= 2:
+            ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+            pairs = []
+            current_header = None
+            current_desc = []
+
+            for line in lines:
+                clean_line = ansi_escape.sub('', line)
+                if clean_line and not clean_line[0].isspace():
+                    if current_header is not None:
+                        pairs.append((current_header, '\n'.join(current_desc)))
+                    current_header = line
+                    current_desc = []
+                else:
+                    current_desc.append(line)
+
+            if current_header is not None:
+                pairs.append((current_header, '\n'.join(current_desc)))
+
+            def score(pair):
+                clean = ansi_escape.sub('', pair[0])
+                name_part = clean.split()[0] if clean.split() else ''
+                name = name_part.split('/')[-1] if '/' in name_part else name_part
+                s = g.compute_match_score(name, regex=None, needle=package.lower())
+                return s if s is not None else 999999
+
+            pairs.sort(key=score, reverse=True)  # Best matches last (like grimaur)
+            lines = []
+            for pair in pairs:
+                lines.append(pair[0])
+                if pair[1]:
+                    lines.append(pair[1])
+
+        if limit and limit > 0 and not exact:
+            # Limit by number of packages - take best matches (from end since reversed)
+            ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+            all_pairs = []
+            current_header = None
+            current_desc = []
+
+            for line in lines:
+                clean_line = ansi_escape.sub('', line)
+                if clean_line and not clean_line[0].isspace():
+                    if current_header is not None:
+                        all_pairs.append((current_header, current_desc))
+                    current_header = line
+                    current_desc = []
+                else:
+                    current_desc.append(line)
+
+            if current_header is not None:
+                all_pairs.append((current_header, current_desc))
+
+            # Take last N pairs (best matches are at the end)
+            limited_pairs = all_pairs[-limit:]
+
+            lines = []
+            for header, desc in limited_pairs:
+                lines.append(header)
+                lines.extend(desc)
+
+        output = '\n'.join(lines)
         print(output)
         return output
     except g.PacAurGitError:
@@ -254,6 +313,9 @@ def inspect_package(package, local=False):
     else:
         op_a(f'inspecting sync {package}')
         cmd = ['pacman', '-Si', package]
+
+    if g.USE_COLOR:
+        cmd.insert(1, '--color=always')
 
     try:
         results = g.run_command(cmd, capture=True)
