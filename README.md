@@ -41,7 +41,7 @@ For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this e
 > [!TIP] 
 > You can add grimaur to your `.local/bin` => `$PATH` or add it to `alias` lines.
 
-You can also use our wrapper: `grur` for common pacman operations + `grur -a` for AUR.
+You can also use our wrapper: `grur` for common `pacman` operations `-h` for help + `grur -a` for AUR.
 
 ## Usage
 ### Search Packages
