@@ -24,7 +24,7 @@ For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this e
 ## Install
 
 ### Deps
-`sudo pacman -S --needed git base-devel pacman-contrib reflector`
+`sudo pacman -S --needed git base-devel pacman-contrib reflector fzf`
 
 ### From Python directly
    ```bash

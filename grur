@@ -2,7 +2,7 @@
 case "$1" in
   -m)
     shift
-    exec python -B fztfui "$@"
+    exec python -B fzftui "$@"
     ;;
   -a)
     shift
