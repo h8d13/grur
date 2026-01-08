@@ -16,7 +16,7 @@ For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this e
 ## Install
 
 ### Deps
-`sudo pacman -S --needed git base-devel pacman-contrib`
+`sudo pacman -S --needed git base-devel pacman-contrib reflector`
 
 ### Directly from the AUR
    ```bash
@@ -38,6 +38,11 @@ For example: `grimaur <package> --git-mirror` to bypass the RPC entirely, this e
    python grimaur <command>
    ```
 
+> [!TIP] 
+> You can add grimaur to your `.local/bin` => `$PATH` or add it to `alias` lines.
+
+You can also use our wrapper: `grur` for common pacman operations + `grur -a` for AUR.
+
 ## Usage
 ### Search Packages
 - `grimaur <term>` (or `grimaur search <term>`) lists matching packages and lets you pick one to install.
@@ -56,13 +61,13 @@ Even see it directly: `python grimaur inspect brave-bin --target PKGBUILD` Also 
 - `grimaur install <package>` clones the repo, resolves dependencies, builds with `makepkg`
    - Pass `--git-mirror` to skip AUR RPC
    - Pass `--use-ssh` use SSH instead of HTTPS
-- `grimaur remove <package>` to uninstall from pacman
+- `grimaur uninstall <package>` to uninstall from pacman
    - Pass `--remove-cache` to delete cached files too
 -  `grimaur install/fetch/inspect mypkg --repo-url <url>` to use custom URL instead
 
-For example to build `archisntall` from source:
+For example to build `archinstall` from source:
 
-`python grimaur install archinstall-latest --repo-url https://github.com/archlinux/archinstall`
+`grimaur install archinstall-latest --repo-url https://github.com/archlinux/archinstall`
 
 ### Stay Updated
 - `grimaur update` rebuilds every installed “foreign” package that has a newer release.
@@ -85,7 +90,7 @@ For example to build `archisntall` from source:
    - `grimaur search <term> --limit 10` limits results to the first N matches 
    - `grimaur search <term> --no-interactive` lists results without prompting to install
 - Force `grimaur fetch <package> --force` reclones even if the directory exists
-- Complete example: `python grimaur --use-ssh search "brave.*-bin" --no-interactive`
+- Complete example: `grimaur --use-ssh search "brave.*-bin" --no-interactive`
 
 ### Details
 - Respects `IgnorePkg = x y z` from `/etc/pacman.conf`
