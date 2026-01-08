@@ -315,6 +315,17 @@ def build_parser() -> argparse.ArgumentParser:
         action='store_true',
         help='Do not ask for confirmation'
     )
+    upgrade_group = upgrade_parser.add_mutually_exclusive_group()
+    upgrade_group.add_argument(
+        '--download', '-w',
+        action='store_true',
+        help='Download packages without installing (pacman -Syuw)'
+    )
+    upgrade_group.add_argument(
+        '--install', '-u',
+        action='store_true',
+        help='Install already-downloaded packages (pacman -Su)'
+    )
 
     # check - check for updates
     subparsers.add_parser(
@@ -431,7 +442,14 @@ def main(argv=None) -> int:
             )
 
         elif args.command == 'upgrade':
-            op_a('upgrading system')
+            download_only = getattr(args, 'download', False)
+            install_only = getattr(args, 'install', False)
+            if download_only:
+                op_a('downloading system updates')
+            elif install_only:
+                op_a('installing downloaded updates')
+            else:
+                op_a('upgrading system')
             g.update_packages(
                 Path.home() / '.cache' / 'aurgit',
                 refresh=False,
@@ -439,6 +457,8 @@ def main(argv=None) -> int:
                 update_system=True,
                 include_devel=False,
                 system_only=True,
+                download_only=download_only,
+                install_only=install_only,
             )
 
         elif args.command == 'check':
