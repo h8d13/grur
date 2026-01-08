@@ -293,6 +293,21 @@ def build_parser() -> argparse.ArgumentParser:
         action='store_true',
         help='Disable colored output',
     )
+    parser.add_argument(
+        '--noconfirm',
+        action='store_true',
+        help='Skip confirmation prompts',
+    )
+    parser.add_argument(
+        '--limit',
+        type=int,
+        help='Limit search results',
+    )
+    parser.add_argument(
+        '--no-interactive',
+        action='store_true',
+        help='List results without install prompt',
+    )
     subparsers = parser.add_subparsers(dest='command')
 
     # mirrors - sort mirrors with reflector
@@ -328,25 +343,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # sync - sync package databases
-    sync_parser = subparsers.add_parser(
+    subparsers.add_parser(
         'sync',
         help='Sync package databases (pacman -Sy)'
-    )
-    sync_parser.add_argument(
-        '--noconfirm',
-        action='store_true',
-        help='Do not ask for confirmation'
     )
 
     # upgrade - full system upgrade
     upgrade_parser = subparsers.add_parser(
         'upgrade',
         help='Full system upgrade (pacman -Syu)'
-    )
-    upgrade_parser.add_argument(
-        '--noconfirm',
-        action='store_true',
-        help='Do not ask for confirmation'
     )
     upgrade_group = upgrade_parser.add_mutually_exclusive_group()
     upgrade_group.add_argument(
@@ -449,6 +454,8 @@ def main(argv=None) -> int:
     if getattr(args, 'no_color', False):
         g.USE_COLOR = False
 
+    noconfirm = getattr(args, 'noconfirm', False)
+
     if args.command is None:
         parser.print_help()
         return 0
@@ -468,7 +475,7 @@ def main(argv=None) -> int:
             g.update_packages(
                 dest_root=Path,
                 refresh=False,
-                noconfirm=args.noconfirm,
+                noconfirm=noconfirm,
                 update_system=True,
                 include_devel=False,
                 index_only=True,
@@ -487,7 +494,7 @@ def main(argv=None) -> int:
             g.update_packages(
                 dest_root=Path,
                 refresh=False,
-                noconfirm=args.noconfirm,
+                noconfirm=noconfirm,
                 update_system=True,
                 include_devel=False,
                 system_only=True,
