@@ -568,8 +568,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 # parse with global flags
 def main(argv=None) -> int:
+    argv_list = list(argv if argv is not None else sys.argv[1:])
+    commands = {
+        'mirrors', 'sync', 'upgrade', 'check', 'clean', 'sif',
+        'deps', 'list', 'search', 'info', 'install', 'uninstall', 'repos',
+    }
+    # Auto-insert 'search' if first arg isn't a command or flag
+    if argv_list and not argv_list[0].startswith('-') and argv_list[0] not in commands:
+        argv_list = ['search'] + argv_list
+
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args(argv_list)
 
     if getattr(args, 'no_color', False):
         g.USE_COLOR = False
