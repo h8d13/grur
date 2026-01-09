@@ -173,6 +173,7 @@ def search_flatpak() -> None:
         '--header', '• = installed | TAB to select, ENTER to install/remove',
         '--multi',
         '--delimiter', '\t',
+        '--tiebreak=begin,index',  # Prefer matches at start (name/id before desc)
         '--preview', preview_cmd,
         '--preview-window', 'right:50%:wrap',
     ]
