@@ -460,7 +460,7 @@ def main_menu() -> None:
     if not result or not result.selected:
         return
 
-    choice = result.selected[0].split('\t')[0]
+    choice = result.selected[0].split('\t')[0].strip()
 
     if choice == 'search-aur':
         search_aur()
