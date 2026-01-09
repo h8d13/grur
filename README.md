@@ -144,6 +144,11 @@ grur -m installed      # Browse installed packages
 - Default [pacman.conf](https://gitlab.archlinux.org/archlinux/packaging/packages/pacman/-/blob/main/pacman.conf)
 - Default [mirrorlist gen](https://archlinux.org/mirrorlist/)
 
-Additional flatpak support `sudo pacman -S flatpak && flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo`
+Additional flatpak support:
+
+```
+sudo pacman -S --needed flatpak 
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo`
+```
 
 ---
