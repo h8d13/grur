@@ -141,6 +141,9 @@ grur -m installed      # Browse installed packages
 ## Notes
 
 - Respects `IgnorePkg` from `/etc/pacman.conf` as `x y z`
-- Default [`pacman.conf`](https://gitlab.archlinux.org/archlinux/packaging/packages/pacman/-/blob/main/pacman.conf)
+- Default [pacman.conf](https://gitlab.archlinux.org/archlinux/packaging/packages/pacman/-/blob/main/pacman.conf)
 - Default [mirrorlist gen](https://archlinux.org/mirrorlist/)
 
+Additional flatpak support `sudo pacman -S flatpak && flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo`
+
+---
