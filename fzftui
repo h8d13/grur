@@ -216,14 +216,14 @@ def search_flatpak() -> None:
         print(g.style(f'Removing: {app_id}', g.CYAN))
         try:
             g.run_command(['flatpak', 'uninstall', '-y', app_id])
-        except g.PacAurGitError as e:
+        except g.PacAurGitFpError as e:
             print(g.style(f'Error: {e}', g.YELLOW), file=sys.stderr)
 
     for app_id in to_install:
         print(g.style(f'Installing: {app_id}', g.CYAN))
         try:
             g.run_command(['flatpak', 'install', '-y', 'flathub', app_id])
-        except g.PacAurGitError as e:
+        except g.PacAurGitFpError as e:
             print(g.style(f'Error: {e}', g.YELLOW), file=sys.stderr)
 
 
@@ -250,7 +250,7 @@ def _get_aur_packages_alphabetical(limit: int = 100) -> list[str]:
             ["git", "ls-remote", "--heads", g.get_aur_remote()],
             capture=True
         )
-    except g.PacAurGitError:
+    except g.PacAurGitFpError:
         return []
 
     packages = []
@@ -323,7 +323,7 @@ def search_aur() -> None:
         print(g.style(f'Installing: {pkg}', g.CYAN))
         try:
             g.install_package(pkg, dest_root=Path, refresh=False, noconfirm=False)
-        except g.PacAurGitError as e:
+        except g.PacAurGitFpError as e:
             print(g.style(f'Error installing {pkg}: {e}', g.YELLOW), file=sys.stderr)
 
 

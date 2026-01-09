@@ -69,7 +69,7 @@ def check_updates():
     op_a('checking updates')
     try:
         g.run_command(['checkupdates'])
-    except g.PacAurGitError as e:
+    except g.PacAurGitFpError as e:
         if "exit code 2" in str(e):
             op_a('system up to date')
         else:
@@ -344,7 +344,7 @@ def search_packages(package, local=False, exact=False, limit=None):
         output = '\n'.join(lines)
         print(output)
         return output
-    except g.PacAurGitError:
+    except g.PacAurGitFpError:
         print(f"Package '{package}' was not found.")
 
 def inspect_package(package, local=False):
@@ -362,7 +362,7 @@ def inspect_package(package, local=False):
     try:
         results = g.run_command(cmd, capture=True)
         print(results)
-    except g.PacAurGitError as e:
+    except g.PacAurGitFpError as e:
         msg = str(e)
         print(g.style(msg, g.YELLOW), file=sys.stderr)
 
@@ -375,7 +375,7 @@ def install_package(package):
     try:
         g.run_command(cmd, check=True)
         print(g.style(f'Sucessfully installed {package}', g.GREEN), file=sys.stderr)
-    except g.PacAurGitError as e:
+    except g.PacAurGitFpError as e:
         msg = str(e)
         print(g.style(msg, g.YELLOW), file=sys.stderr)
 
@@ -391,7 +391,7 @@ def remove_package(package, dependencies=True):
     try:
         g.run_command(cmd, check=True)
         print(g.style(f'Sucessfully uninstalled {package}', g.GREEN), file=sys.stderr)
-    except g.PacAurGitError as e:
+    except g.PacAurGitFpError as e:
         msg = str(e)
         print(g.style(msg, g.YELLOW), file=sys.stderr)
 
@@ -667,7 +667,7 @@ def main(argv=None) -> int:
         else:
             parser.error(f'Unknown command: {args.command}')
 
-    except g.PacAurGitError as e:
+    except g.PacAurGitFpError as e:
         print(g.style(f'error: {e}', g.YELLOW), file=sys.stderr)
         return 1
 
