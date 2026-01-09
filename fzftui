@@ -213,11 +213,17 @@ def search_flatpak() -> None:
 
     for app_id in to_remove:
         print(g.style(f'Removing: {app_id}', g.CYAN))
-        subprocess.run(['flatpak', 'uninstall', '-y', app_id])
+        try:
+            g.run_command(['flatpak', 'uninstall', '-y', app_id])
+        except g.PacAurGitError as e:
+            print(g.style(f'Error: {e}', g.YELLOW), file=sys.stderr)
 
     for app_id in to_install:
         print(g.style(f'Installing: {app_id}', g.CYAN))
-        subprocess.run(['flatpak', 'install', '-y', 'flathub', app_id])
+        try:
+            g.run_command(['flatpak', 'install', '-y', 'flathub', app_id])
+        except g.PacAurGitError as e:
+            print(g.style(f'Error: {e}', g.YELLOW), file=sys.stderr)
 
 
 def _format_aur_results(results) -> list[str]:
