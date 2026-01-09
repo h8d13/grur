@@ -35,6 +35,8 @@ gpm = module_from_spec(s_gpm)
 sys.modules['gpmwrap'] = gpm
 s_gpm.loader.exec_module(gpm)
 
+script_path = Path(__file__).resolve()
+
 g.USE_COLOR = sys.stdout.isatty()
 
 
@@ -90,6 +92,134 @@ def run_fzf(
     return FzfResult(selected=selected, query='', key=None)
 
 
+def _flatpak_info_output(app_id: str) -> None:
+    """Output formatted flatpak info for preview pane."""
+    try:
+        result = subprocess.run(
+            ['flatpak', 'remote-info', 'flathub', app_id],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            print('No info available')
+            return
+
+        for line in result.stdout.splitlines():
+            # Strip trailing whitespace and normalize leading whitespace
+            line = line.rstrip()
+            if ':' in line:
+                # Split on first colon, left-align label
+                parts = line.split(':', 1)
+                label = parts[0].strip()
+                value = parts[1].strip() if len(parts) > 1 else ''
+                print(f"{label}: {value}")
+            else:
+                # Description line or other content
+                print(line.strip())
+    except FileNotFoundError:
+        print('flatpak not found')
+
+
+def _get_flatpak_installed() -> set[str]:
+    """Get set of installed flatpak app IDs."""
+    try:
+        result = subprocess.run(
+            ['flatpak', 'list', '--app', '--columns=application'],
+            capture_output=True, text=True
+        )
+        return set(line.strip() for line in result.stdout.splitlines() if line.strip())
+    except FileNotFoundError:
+        return set()
+
+
+def _get_all_flatpaks() -> list[str]:
+    """Get all flatpaks from flathub with installed markers."""
+    installed = _get_flatpak_installed()
+    items = []
+    try:
+        result = subprocess.run(
+            ['flatpak', 'remote-ls', 'flathub', '--app', '--columns=name,application,description'],
+            capture_output=True, text=True
+        )
+        for line in result.stdout.splitlines():
+            if line.strip():
+                parts = line.split('\t')
+                if len(parts) >= 2:
+                    name = parts[0].strip()[:25]
+                    app_id = parts[1].strip()
+                    desc = parts[2].strip()[:40] if len(parts) > 2 else ''
+                    marker = '• ' if app_id in installed else '  '
+                    # Pad app_id to 45 chars for alignment
+                    items.append(f"{marker}{name:<25}\t{app_id:<45}\t{desc}")
+    except FileNotFoundError:
+        pass
+    return items
+
+
+def search_flatpak() -> None:
+    """Interactive flatpak browser with fzf."""
+    # Get all flatpaks from flathub
+    items = _get_all_flatpaks()
+
+    if not items:
+        print(g.style('No flatpaks found. Is flathub remote configured?', g.YELLOW), file=sys.stderr)
+        return
+
+    # Preview command using Python helper for clean formatting
+    preview_cmd = f"python {script_path} _flatpak_info $(echo {{}} | cut -f2)"
+
+    cmd = [
+        'fzf',
+        '--prompt', 'Flatpak> ',
+        '--header', '• = installed | TAB to select, ENTER to install/remove',
+        '--multi',
+        '--delimiter', '\t',
+        '--preview', preview_cmd,
+        '--preview-window', 'right:50%:wrap',
+    ]
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            input='\n'.join(items),
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        print(g.style('fzf not found.', g.YELLOW), file=sys.stderr)
+        return
+
+    if proc.returncode == 130 or not proc.stdout.strip():
+        return
+
+    selected = [line for line in proc.stdout.strip().split('\n') if line]
+    if not selected:
+        return
+
+    installed = _get_flatpak_installed()
+    to_install = []
+    to_remove = []
+
+    for line in selected:
+        # Extract app ID (field 2, tab-delimited)
+        # Line format: "• Name\tapp.id\tDescription" or "  Name\tapp.id\tDescription"
+        clean_line = line.lstrip('• ')
+        parts = clean_line.split('\t')
+        if len(parts) >= 2:
+            app_id = parts[1].strip()
+            if app_id in installed:
+                to_remove.append(app_id)
+            else:
+                to_install.append(app_id)
+
+    for app_id in to_remove:
+        print(g.style(f'Removing: {app_id}', g.CYAN))
+        subprocess.run(['flatpak', 'uninstall', '-y', app_id])
+
+    for app_id in to_install:
+        print(g.style(f'Installing: {app_id}', g.CYAN))
+        subprocess.run(['flatpak', 'install', '-y', 'flathub', app_id])
+
+
 def _format_aur_results(results) -> list[str]:
     items = []
     for r in results:
@@ -135,16 +265,13 @@ def search_aur() -> None:
     initial_packages = _get_aur_packages_alphabetical(100)
     initial_items = [f"{name:<35}" for name in initial_packages]
 
-    script_path = Path(__file__).resolve()
-    grimaur_path = script_path.parent / 'grimaur'
-
     cmd = [
         'fzf',
         '--prompt', 'AUR> ',
         '--header', 'Type to search AUR, TAB to select, ENTER to install/remove',
         '--multi',
         '--bind', f'change:reload:python {script_path} _aur {{q}} 2>/dev/null || true',
-        '--preview', f'python {grimaur_path} info {{1}} --full 2>/dev/null || python {grimaur_path} info {{1}} --target PKGBUILD 2>/dev/null || python {grimaur_path} info {{1}} --target SRCINFO 2>/dev/null || echo "No info"',
+        '--preview', f'python {file_path} info {{1}} --full 2>/dev/null || python {file_path} info {{1}} --target PKGBUILD 2>/dev/null || python {file_path} info {{1}} --target SRCINFO 2>/dev/null || echo "No info"',
     ]
 
     try:
@@ -318,9 +445,10 @@ def main_menu() -> None:
         ]
     else:
         menu = [
-            'search-aur\tSearch AUR packages',
-            'search-sync\tSearch official repo packages',
-            'installed\tBrowse installed packages',
+            f"{'search-aur':<12}\tSearch AUR packages",
+            f"{'search-sync':<12}\tSearch official repo packages",
+            f"{'search-fp':<12}\tSearch Flathub packages",
+            f"{'installed':<12}\tBrowse installed packages",
         ]
 
     result = run_fzf(
@@ -338,6 +466,8 @@ def main_menu() -> None:
         search_aur()
     elif choice == 'search-sync':
         search_sync()
+    elif choice == 'search-fp':
+        search_flatpak()
     elif choice == 'installed':
         search_installed()
     elif choice == 'repos':
@@ -356,12 +486,16 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser('menu', help='Show main menu')
     subparsers.add_parser('aur', help='Search AUR packages')
     subparsers.add_parser('sync', help='Search sync repo packages')
+    subparsers.add_parser('search-fp', help='Search Flathub packages')
     subparsers.add_parser('installed', help='Browse installed packages')
     subparsers.add_parser('repos', help='Toggle pacman.conf repositories')
 
-    # Internal: fzf reload helper
+    # Internal: fzf helpers
     aur_reload = subparsers.add_parser('_aur')
     aur_reload.add_argument('query', nargs='?', default='')
+
+    flatpak_info = subparsers.add_parser('_flatpak_info')
+    flatpak_info.add_argument('app_id', nargs='?', default='')
 
     return parser
 
@@ -376,12 +510,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         search_aur()
     elif args.command == 'sync':
         search_sync()
+    elif args.command == 'search-fp':
+        search_flatpak()
     elif args.command == 'installed':
         search_installed()
     elif args.command == 'repos':
         toggle_repos()
     elif args.command == '_aur':
         _aur_search_output(args.query)
+    elif args.command == '_flatpak_info':
+        _flatpak_info_output(args.app_id)
 
     return 0
 
