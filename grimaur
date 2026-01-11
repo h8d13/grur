@@ -1087,6 +1087,16 @@ def install_package(
         package_dir = ensure_clone(
             package, dest_root, refresh=refresh, repo_url=repo_url
         )
+        # Validate PKGBUILD exists after clone
+        if not (package_dir / "PKGBUILD").exists():
+            # Check if this was installed as part of a split package
+            if is_installed(package):
+                print(f"Package {style(package, BOLD)} was installed as a split package")
+                return
+            raise PacAurGitFpError(
+                f"PKGBUILD not found at {package_dir / 'PKGBUILD'} - "
+                "package may be a split package or have an invalid AUR entry"
+            )
     elif USE_AUR_RPC:
         info = aur_rpc_info(package)
         if info is None and USE_AUR_RPC:
@@ -1103,6 +1113,16 @@ def install_package(
             package_dir = ensure_clone(
                 package, dest_root, refresh=refresh, repo_url=repo_url
             )
+            # Validate PKGBUILD exists after clone
+            if not (package_dir / "PKGBUILD").exists():
+                # Check if this was installed as part of a split package
+                if is_installed(package):
+                    print(f"Package {style(package, BOLD)} was installed as a split package")
+                    return
+                raise PacAurGitFpError(
+                    f"PKGBUILD not found at {package_dir / 'PKGBUILD'} - "
+                    "package may be a split package or have an invalid AUR entry"
+                )
         srcinfo = read_srcinfo(package_dir)
         _, pkgdesc, deps = parse_dependencies(srcinfo)
     if pkgdesc:
