@@ -313,6 +313,7 @@ def ensure_clone(
     refresh: bool = False,
     force_reclone: bool = False,
     repo_url: str | None = None,
+    pkgbase: str | None = None,
 ) -> Path:
     """Clone or refresh the package branch into dest_root/package."""
     dest_root.mkdir(parents=True, exist_ok=True)
@@ -343,7 +344,9 @@ def ensure_clone(
             shutil.rmtree(package_dir)
         run_command(["git", "clone", repo_url, str(package_dir)])
     elif USE_AUR_RPC:
-        remote_url = f"{get_official_aur_git_base()}/{package}.git"
+        # Use pkgbase for clone URL (handles split packages like nvidia-580xx-dkms -> nvidia-580xx-utils)
+        clone_name = pkgbase if pkgbase else package
+        remote_url = f"{get_official_aur_git_base()}/{clone_name}.git"
         if (
             package_dir.exists()
             and (package_dir / ".git").is_dir()
@@ -375,15 +378,17 @@ def ensure_clone(
             shutil.rmtree(package_dir)
         run_command(["git", "clone", remote_url, str(package_dir)])
     else:
+        # Git mirror mode: use pkgbase for branch name (handles split packages)
+        branch_name = pkgbase if pkgbase else package
         if (
             package_dir.exists()
             and (package_dir / ".git").is_dir()
             and not force_reclone
         ):
             if refresh:
-                run_command(["git", "-C", str(package_dir), "fetch", "origin", package])
+                run_command(["git", "-C", str(package_dir), "fetch", "origin", branch_name])
                 try:
-                    _reset_git_worktree(package_dir, (f"origin/{package}",))
+                    _reset_git_worktree(package_dir, (f"origin/{branch_name}",))
                 except PacAurGitFpError:
                     if package_dir.exists():
                         shutil.rmtree(package_dir)
@@ -392,6 +397,7 @@ def ensure_clone(
                         dest_root,
                         refresh=False,
                         force_reclone=True,
+                        pkgbase=pkgbase,
                     )
             return package_dir
         if package_dir.exists():
@@ -401,7 +407,7 @@ def ensure_clone(
                 "git",
                 "clone",
                 "--branch",
-                package,
+                branch_name,
                 "--single-branch",
                 get_aur_remote(),
                 str(package_dir),
@@ -930,6 +936,22 @@ def list_installed_packages() -> None:
         print(f"  {style(name, BOLD)} {style(version, GREEN)}")
 
 
+def fetch_pkgbase(package: str) -> str | None:
+    """Fetch pkgbase from .SRCINFO for split package detection (works with git mirror)."""
+    srcinfo = fetch_git_file(package, ".SRCINFO")
+    if not srcinfo:
+        return None
+    for line in srcinfo.splitlines():
+        line = line.strip()
+        if line.startswith("pkgbase") and "=" in line:
+            _, value = line.split("=", 1)
+            value = value.strip()
+            if value and value != package:
+                return value
+            break
+    return None
+
+
 def fetch_git_file(package: str, path: str) -> str | None:
     safe_package = urllib.parse.quote(package)
     safe_path = path.lstrip("/")
@@ -1101,6 +1123,15 @@ def install_package(
         info = aur_rpc_info(package)
         if info is None and USE_AUR_RPC:
             raise PacAurGitFpError(f"Package '{package}' not found via AUR RPC")
+    # Extract pkgbase for split packages (e.g., nvidia-580xx-dkms -> nvidia-580xx-utils)
+    pkgbase: str | None = None
+    if info:
+        pkgbase_value = info.get("PackageBase")
+        if isinstance(pkgbase_value, str) and pkgbase_value != package:
+            pkgbase = pkgbase_value
+    elif not repo_url:
+        # Git mirror mode: fetch pkgbase from .SRCINFO (no RPC)
+        pkgbase = fetch_pkgbase(package)
     if info:
         pkgdesc = (
             info.get("Description")
@@ -1190,8 +1221,17 @@ def install_package(
 
     if package_dir is None:
         package_dir = ensure_clone(
-            package, dest_root, refresh=refresh, repo_url=repo_url
+            package, dest_root, refresh=refresh, repo_url=repo_url, pkgbase=pkgbase
         )
+        # Validate PKGBUILD exists after clone (AUR RPC path)
+        if not (package_dir / "PKGBUILD").exists():
+            if is_installed(package):
+                print(f"Package {style(package, BOLD)} was installed as a split package")
+                return
+            raise PacAurGitFpError(
+                f"PKGBUILD not found at {package_dir / 'PKGBUILD'} - "
+                "package may be a split package or have an invalid AUR entry"
+            )
 
     build_and_install(package_dir, noconfirm=noconfirm, refresh=refresh)
 
