@@ -222,12 +222,12 @@ def toggle_color(option: str) -> None:
             elif stripped == '#ILoveCandy':
                 new.append('ILoveCandy\n')
                 continue
-
-        # If option doesn't exist, add it after [options] section header
-        if not has_enabled and not has_disabled and stripped == '[options]':
-            new.append(line)
-            new.append(f'{option}\n')
-            continue
+            # Add ILoveCandy after Color line if it doesn't exist
+            if not has_enabled and not has_disabled:
+                if stripped == 'Color' or stripped == '#Color':
+                    new.append(line)
+                    new.append('ILoveCandy\n')
+                    continue
 
         new.append(line)
 
