@@ -420,6 +420,7 @@ def toggle_color() -> None:
 
     has_color = any(line.strip() == "Color" for line in lines)
     has_candy = any(line.strip() == "ILoveCandy" for line in lines)
+    has_candy_commented = any(line.strip() == "#ILoveCandy" for line in lines)
 
     items = [
         f"{'Color':<20} {'[enabled]' if has_color else '[disabled]'}",
@@ -438,7 +439,19 @@ def toggle_color() -> None:
 
     for line in result.selected:
         option = line.split()[0]
-        gpm.toggle_color(option)
+        # If ILoveCandy doesn't exist at all, add it after Color
+        if option == 'ILoveCandy' and not has_candy and not has_candy_commented:
+            with open("/etc/pacman.conf") as f:
+                conf_lines = f.readlines()
+            new_lines = []
+            for conf_line in conf_lines:
+                new_lines.append(conf_line)
+                if conf_line.strip() in ('Color', '#Color'):
+                    new_lines.append('ILoveCandy\n')
+            with open("/etc/pacman.conf", "w") as f:
+                f.writelines(new_lines)
+        else:
+            gpm.toggle_color(option)
 
 
 def main_menu() -> None:
