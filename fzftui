@@ -413,45 +413,30 @@ def toggle_repos() -> None:
         g.run_command(sync_cmd)
 
 
-def toggle_color() -> None:
-    """Interactive color/eyecandy toggle menu with fzf."""
+def toggle_colors() -> None:
+    """Toggle Color in pacman.conf."""
+    gpm.toggle_color('Color')
+
+
+def toggle_candy() -> None:
+    """Toggle ILoveCandy in pacman.conf."""
     with open("/etc/pacman.conf") as f:
         lines = f.readlines()
 
-    has_color = any(line.strip() == "Color" for line in lines)
     has_candy = any(line.strip() == "ILoveCandy" for line in lines)
     has_candy_commented = any(line.strip() == "#ILoveCandy" for line in lines)
 
-    items = [
-        f"{'Color':<20} {'[enabled]' if has_color else '[disabled]'}",
-        f"{'ILoveCandy':<20} {'[enabled]' if has_candy else '[disabled]'}",
-    ]
-
-    result = run_fzf(
-        items,
-        prompt='Color> ',
-        multi=True,
-        header='TAB to select, ENTER to toggle',
-    )
-
-    if not result or not result.selected:
-        return
-
-    for line in result.selected:
-        option = line.split()[0]
-        # If ILoveCandy doesn't exist at all, add it after Color
-        if option == 'ILoveCandy' and not has_candy and not has_candy_commented:
-            with open("/etc/pacman.conf") as f:
-                conf_lines = f.readlines()
-            new_lines = []
-            for conf_line in conf_lines:
-                new_lines.append(conf_line)
-                if conf_line.strip() in ('Color', '#Color'):
-                    new_lines.append('ILoveCandy\n')
-            with open("/etc/pacman.conf", "w") as f:
-                f.writelines(new_lines)
-        else:
-            gpm.toggle_color(option)
+    # If ILoveCandy doesn't exist at all, add it after Color
+    if not has_candy and not has_candy_commented:
+        new_lines = []
+        for line in lines:
+            new_lines.append(line)
+            if line.strip() in ('Color', '#Color'):
+                new_lines.append('ILoveCandy\n')
+        with open("/etc/pacman.conf", "w") as f:
+            f.writelines(new_lines)
+    else:
+        gpm.toggle_color('ILoveCandy')
 
 
 def main_menu() -> None:
@@ -461,7 +446,8 @@ def main_menu() -> None:
     if os.geteuid() == 0:
         menu = [
             'repos\tToggle pacman.conf repositories',
-            'color\tToggle pacman color/eyecandy',
+            'colors\tToggle pacman colors',
+            'pacman-anim\tToggle pacman animation (ILoveCandy)',
         ]
     else:
         menu = [
@@ -492,8 +478,10 @@ def main_menu() -> None:
         search_installed()
     elif choice == 'repos':
         toggle_repos()
-    elif choice == 'color':
-        toggle_color()
+    elif choice == 'colors':
+        toggle_colors()
+    elif choice == 'pacman-anim':
+        toggle_candy()
 
 
 def build_parser() -> argparse.ArgumentParser:
