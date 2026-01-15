@@ -200,6 +200,10 @@ def toggle_color(option: str) -> None:
     with open("/etc/pacman.conf") as f:
         lines = f.readlines()
 
+    # Check if option exists (enabled or commented)
+    has_enabled = any(line.strip() == option for line in lines)
+    has_disabled = any(line.strip() == f'#{option}' for line in lines)
+
     new = []
     for line in lines:
         stripped = line.strip()
@@ -218,6 +222,12 @@ def toggle_color(option: str) -> None:
             elif stripped == '#ILoveCandy':
                 new.append('ILoveCandy\n')
                 continue
+
+        # If option doesn't exist, add it after [options] section header
+        if not has_enabled and not has_disabled and stripped == '[options]':
+            new.append(line)
+            new.append(f'{option}\n')
+            continue
 
         new.append(line)
 
