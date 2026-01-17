@@ -134,9 +134,21 @@ def is_vcs_package(name: str) -> bool:
     return any(name.endswith(suffix) for suffix in _VCS_SUFFIXES)
 
 
+def get_su_cmd():
+    """Get the privilege escalation command to use."""
+    # Check environment variable first
+    if env_su := os.environ.get("GRIMAUR_SU"):
+        return env_su
+    # Check for common alternatives
+    for su_cmd in ("doas", "sudo"):
+        if shutil.which(su_cmd):
+            return su_cmd
+    return "sudo"  # fallback
+
+
 def needs_sudo(cmd):
     if os.geteuid() != 0:
-        cmd.insert(0, "sudo")
+        cmd.insert(0, get_su_cmd())
     return cmd
 
 class PacAurGitFpError(RuntimeError):
