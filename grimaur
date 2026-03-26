@@ -141,7 +141,12 @@ def get_su_cmd():
         return env_su
     # Check for common alternatives
     # most popular takes precedence
-    for su_cmd in ("sudo", "doas", "run0", "su"):
+    # run0 inserted first when not in a tty
+    # makes for xdg pw prompts 
+    candidates = ["sudo", "doas", "su"]
+    if not sys.stdin.isatty() and shutil.which("run0"):
+        candidates.insert(0, "run0")
+    for su_cmd in candidates:
         if shutil.which(su_cmd):
             return su_cmd
     raise RuntimeError("No privilege escalation tool found")
