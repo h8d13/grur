@@ -1,4 +1,8 @@
 #!/bin/sh
+if [ "$(id -u)" = "0" ]; then
+    printf 'grur: must not be run as root\n' >&2
+    exit 1
+fi
 case "$1" in
   -m)
     shift

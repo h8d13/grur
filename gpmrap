@@ -560,6 +560,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 # parse with global flags
 def main(argv=None) -> int:
+    if g.check_not_root("gpmrap"):
+        return 1
     argv_list = list(argv if argv is not None else sys.argv[1:])
     commands = {
         'mirrors', 'sync', 'upgrade', 'check', 'clean', 'sif',

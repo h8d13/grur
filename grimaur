@@ -151,6 +151,13 @@ def needs_sudo(cmd):
         cmd.insert(0, get_su_cmd())
     return cmd
 
+def check_not_root(script_name: str) -> bool:
+    """Return True and print an error if running as root, False otherwise."""
+    if os.geteuid() == 0:
+        print(style(f"{script_name} must not be run as root — it invokes sudo/doas/run0 internally", RED), file=sys.stderr)
+        return True
+    return False
+
 class PacAurGitFpError(RuntimeError):
     """Wraps fatal errors coming from the helper."""
 
@@ -2106,6 +2113,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    if check_not_root("grimaur"):
+        return 1
     argv_list = list(argv if argv is not None else sys.argv[1:])
     commands = {
         "fetch",

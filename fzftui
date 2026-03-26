@@ -385,77 +385,14 @@ def search_installed() -> None:
         gpm.remove_package(pkg, dependencies=True)
 
 
-def toggle_repos() -> None:
-    """Interactive repository toggle menu with fzf."""
-    repos = gpm.get_repos()
-
-    items = []
-    for name, enabled in repos:
-        status = '[enabled]' if enabled else '[disabled]'
-        items.append(f"{name:<20} {status}")
-
-    result = run_fzf(
-        items,
-        prompt='Repos> ',
-        multi=True,
-        header='TAB to select, ENTER to toggle',
-    )
-
-    if not result or not result.selected:
-        return
-
-    for line in result.selected:
-        repo_name = line.split()[0]
-        gpm.toggle_repo(repo_name)
-
-        sync_cmd = ['pacman', '-Sy']
-        g.needs_sudo(sync_cmd)
-        g.run_command(sync_cmd)
-
-
-def toggle_colors() -> None:
-    """Toggle Color in pacman.conf."""
-    gpm.toggle_color('Color')
-
-
-def toggle_candy() -> None:
-    """Toggle ILoveCandy in pacman.conf."""
-    with open("/etc/pacman.conf") as f:
-        lines = f.readlines()
-
-    has_candy = any(line.strip() == "ILoveCandy" for line in lines)
-    has_candy_commented = any(line.strip() == "#ILoveCandy" for line in lines)
-
-    # If ILoveCandy doesn't exist at all, add it after Color
-    if not has_candy and not has_candy_commented:
-        new_lines = []
-        for line in lines:
-            new_lines.append(line)
-            if line.strip() in ('Color', '#Color'):
-                new_lines.append('ILoveCandy\n')
-        with open("/etc/pacman.conf", "w") as f:
-            f.writelines(new_lines)
-    else:
-        gpm.toggle_color('ILoveCandy')
-
-
 def main_menu() -> None:
-    """Main menu for fzf interface."""
-    import os
 
-    if os.geteuid() == 0:
-        menu = [
-            'repos\tToggle pacman.conf repositories',
-            'colors\tToggle pacman colors',
-            'pacman-anim\tToggle pacman animation (ILoveCandy)',
-        ]
-    else:
-        menu = [
-            f"{'search-aur':<12}\tSearch AUR packages",
-            f"{'search-sync':<12}\tSearch official repo packages",
-            f"{'search-fp':<12}\tSearch Flathub packages",
-            f"{'installed':<12}\tBrowse installed packages",
-        ]
+    menu = [
+        f"{'search-aur':<12}\tSearch AUR packages",
+        f"{'search-sync':<12}\tSearch official repo packages",
+        f"{'search-fp':<12}\tSearch Flathub packages",
+        f"{'installed':<12}\tBrowse installed packages",
+    ]
 
     result = run_fzf(
         menu,
@@ -476,13 +413,6 @@ def main_menu() -> None:
         search_flatpak()
     elif choice == 'installed':
         search_installed()
-    elif choice == 'repos':
-        toggle_repos()
-    elif choice == 'colors':
-        toggle_colors()
-    elif choice == 'pacman-anim':
-        toggle_candy()
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -496,7 +426,6 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser('sync', help='Search sync repo packages')
     subparsers.add_parser('search-fp', help='Search Flathub packages')
     subparsers.add_parser('installed', help='Browse installed packages')
-    subparsers.add_parser('repos', help='Toggle pacman.conf repositories')
 
     # Internal: fzf helpers
     aur_reload = subparsers.add_parser('_aur')
@@ -509,6 +438,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    if g.check_not_root("fzftui"):
+        return 1
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -522,8 +453,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         search_flatpak()
     elif args.command == 'installed':
         search_installed()
-    elif args.command == 'repos':
-        toggle_repos()
     elif args.command == '_aur':
         _aur_search_output(args.query)
     elif args.command == '_flatpak_info':
