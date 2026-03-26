@@ -361,7 +361,7 @@ def ensure_clone(
             return package_dir
         if package_dir.exists():
             shutil.rmtree(package_dir)
-        run_command(["git", "clone", repo_url, str(package_dir)])
+        run_command(["git", "clone", "--depth=1", repo_url, str(package_dir)])
     elif USE_AUR_RPC:
         # Use pkgbase for clone URL (handles split packages like nvidia-580xx-dkms -> nvidia-580xx-utils)
         clone_name = pkgbase if pkgbase else package
@@ -395,7 +395,7 @@ def ensure_clone(
             return package_dir
         if package_dir.exists():
             shutil.rmtree(package_dir)
-        run_command(["git", "clone", remote_url, str(package_dir)])
+        run_command(["git", "clone", "--depth=1", remote_url, str(package_dir)])
     else:
         # Git mirror mode: use pkgbase for branch name (handles split packages)
         branch_name = pkgbase if pkgbase else package
@@ -425,6 +425,7 @@ def ensure_clone(
             [
                 "git",
                 "clone",
+                "--depth=1",
                 "--branch",
                 branch_name,
                 "--single-branch",
