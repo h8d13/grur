@@ -139,12 +139,12 @@ def get_su_cmd():
     # Check environment variable first
     if env_su := os.environ.get("GRIMAUR_SU"):
         return env_su
-    # Check for common alternatives (prefer modern tools first)
-    for su_cmd in ("run0", "doas", "sudo"):
+    # Check for common alternatives
+    # most popular takes precedence
+    for su_cmd in ("sudo", "doas", "run0", "su"):
         if shutil.which(su_cmd):
             return su_cmd
-    raise RuntimeError("No privilege escalation tool found (run0, doas, or sudo)")
-
+    raise RuntimeError("No privilege escalation tool found")
 
 def needs_sudo(cmd):
     if os.geteuid() != 0:
