@@ -24,6 +24,7 @@ _grur_aur() {
         '--aur-rpc[Use AUR RPC API (default)]'
         '--git-mirror[Use git mirror instead of AUR RPC]'
         '--use-ssh[Use SSH instead of HTTPS]'
+        '--no-shallow[Disable shallow clones (full history)]'
     )
 
     _arguments -C \

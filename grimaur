@@ -65,6 +65,7 @@ USE_COLOR = False
 USE_AUR_RPC = False
 FORCE_GIT_MIRROR = False
 USE_SSH = False
+SHALLOW_CLONE = True
 _INSTALLED_CACHE: set[str] | None = None
 _PROVIDES_CACHE: dict[str, set[str] | None] = {}
 _VIRTUAL_PROVIDER_CACHE: dict[str, str | None] = {}
@@ -79,6 +80,7 @@ _GLOBAL_FLAG_OPTIONS = {
     "--aur-rpc",
     "--git-mirror",
     "--use-ssh",
+    "--no-shallow",
 }
 _GLOBAL_VALUE_OPTIONS = {"--dest-root"}
 
@@ -341,6 +343,7 @@ def ensure_clone(
     force_reclone: bool = False,
     repo_url: str | None = None,
     pkgbase: str | None = None,
+    shallow: bool = True,
 ) -> Path:
     """Clone or refresh the package branch into dest_root/package."""
     dest_root.mkdir(parents=True, exist_ok=True)
@@ -369,7 +372,7 @@ def ensure_clone(
             return package_dir
         if package_dir.exists():
             shutil.rmtree(package_dir)
-        run_command(["git", "clone", "--depth=1", repo_url, str(package_dir)])
+        run_command(["git", "clone", *( ["--depth=1"] if shallow else []), repo_url, str(package_dir)])
     elif USE_AUR_RPC:
         # Use pkgbase for clone URL (handles split packages like nvidia-580xx-dkms -> nvidia-580xx-utils)
         clone_name = pkgbase if pkgbase else package
@@ -399,11 +402,12 @@ def ensure_clone(
                         dest_root,
                         refresh=False,
                         force_reclone=True,
+                        shallow=shallow,
                     )
             return package_dir
         if package_dir.exists():
             shutil.rmtree(package_dir)
-        run_command(["git", "clone", "--depth=1", remote_url, str(package_dir)])
+        run_command(["git", "clone", *( ["--depth=1"] if shallow else []), remote_url, str(package_dir)])
     else:
         # Git mirror mode: use pkgbase for branch name (handles split packages)
         branch_name = pkgbase if pkgbase else package
@@ -425,6 +429,7 @@ def ensure_clone(
                         refresh=False,
                         force_reclone=True,
                         pkgbase=pkgbase,
+                        shallow=shallow,
                     )
             return package_dir
         if package_dir.exists():
@@ -433,7 +438,7 @@ def ensure_clone(
             [
                 "git",
                 "clone",
-                "--depth=1",
+                *( ["--depth=1"] if shallow else []),
                 "--branch",
                 branch_name,
                 "--single-branch",
@@ -1056,7 +1061,7 @@ def collect_missing_official_packages(
         if info:
             deps = dependency_set_from_rpc(info)
     if deps is None:
-        package_dir = ensure_clone(package, dest_root, refresh=refresh)
+        package_dir = ensure_clone(package, dest_root, refresh=refresh, shallow=SHALLOW_CLONE)
         srcinfo = read_srcinfo(package_dir)
         _, _, deps = parse_dependencies(srcinfo)
 
@@ -1135,7 +1140,7 @@ def install_package(
     if repo_url:
         # Skip AUR RPC when using custom repo URL
         package_dir = ensure_clone(
-            package, dest_root, refresh=refresh, repo_url=repo_url
+            package, dest_root, refresh=refresh, repo_url=repo_url, shallow=SHALLOW_CLONE
         )
         # Validate PKGBUILD exists after clone
         if not (package_dir / "PKGBUILD").exists():
@@ -1170,7 +1175,7 @@ def install_package(
     else:
         if package_dir is None:
             package_dir = ensure_clone(
-                package, dest_root, refresh=refresh, repo_url=repo_url
+                package, dest_root, refresh=refresh, repo_url=repo_url, shallow=SHALLOW_CLONE
             )
             # Validate PKGBUILD exists after clone
             if not (package_dir / "PKGBUILD").exists():
@@ -1249,7 +1254,7 @@ def install_package(
 
     if package_dir is None:
         package_dir = ensure_clone(
-            package, dest_root, refresh=refresh, repo_url=repo_url, pkgbase=pkgbase
+            package, dest_root, refresh=refresh, repo_url=repo_url, pkgbase=pkgbase, shallow=SHALLOW_CLONE
         )
         # Validate PKGBUILD exists after clone (AUR RPC path)
         if not (package_dir / "PKGBUILD").exists():
@@ -1921,7 +1926,7 @@ def inspect_package(
         if USE_AUR_RPC:
             raise GrurError(f"Package '{package}' not found via AUR RPC")
 
-    package_dir = ensure_clone(package, dest_root, refresh=refresh, repo_url=repo_url)
+    package_dir = ensure_clone(package, dest_root, refresh=refresh, repo_url=repo_url, shallow=SHALLOW_CLONE)
     if target == "PKGBUILD":
         pkgbuild_path = package_dir / "PKGBUILD"
         if not pkgbuild_path.exists():
@@ -1973,7 +1978,7 @@ def fetch_package(
     repo_url: str | None = None,
 ) -> Path:
     package_dir = ensure_clone(
-        package, dest_root, refresh=refresh, force_reclone=force, repo_url=repo_url
+        package, dest_root, refresh=refresh, force_reclone=force, repo_url=repo_url, shallow=SHALLOW_CLONE
     )
     print(f"Package fetched to {package_dir}")
     return package_dir
@@ -2013,6 +2018,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--use-ssh",
         action="store_true",
         help="Use SSH instead of HTTPS for git operations",
+    )
+    parser.add_argument(
+        "--no-shallow",
+        action="store_true",
+        help="Disable shallow clones (full history; slower but compatible with pkgver() using git describe)",
     )
     subparsers = parser.add_subparsers(dest="command")
 
@@ -2170,11 +2180,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
 
-    global USE_COLOR, USE_AUR_RPC, FORCE_GIT_MIRROR, USE_SSH
+    global USE_COLOR, USE_AUR_RPC, FORCE_GIT_MIRROR, USE_SSH, SHALLOW_CLONE
     USE_COLOR = not getattr(args, "no_color", False) and sys.stdout.isatty()
     USE_AUR_RPC = bool(getattr(args, "aur_rpc", True))
     FORCE_GIT_MIRROR = not USE_AUR_RPC
     USE_SSH = bool(getattr(args, "use_ssh", False))
+    SHALLOW_CLONE = not bool(getattr(args, "no_shallow", False))
 
     try:
         if args.command == "fetch":
