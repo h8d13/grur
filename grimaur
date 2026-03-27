@@ -139,27 +139,32 @@ def is_vcs_package(name: str) -> bool:
 def _in_gui_session():
     return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
-def get_su_cmd():
-    """Get the privilege escalation command to use."""
-    # Check environment variable first
-    if env_su := os.environ.get("GRIMAUR_SU"):
-        return env_su
-    # Check for common alternatives
-    # most popular takes precedence
-    # run0 inserted first when not in a tty
-    # makes for xdg pw prompts 
-    candidates = ["sudo", "doas", "su"]
-    if _in_gui_session() and shutil.which("run0"):
-        candidates.insert(0, "run0")
-    for su_cmd in candidates:
-        if shutil.which(su_cmd):
-            return su_cmd
-    raise RuntimeError("No privilege escalation tool found")
+def get_su_cmd() -> str:
+	"""Get the privilege escalation command to use."""
+	# Check environment variable first
+	if env_su := os.environ.get('GRIMAUR_SU'):
+		return env_su
+	# Check for common alternatives
+	# most popular takes precedence
+	# run0 inserted first when not in a tty
+	# makes for xdg pw prompts
+	candidates = ['sudo', 'doas', 'run0', 'su']
+	if _in_gui_session() and shutil.which('run0'):
+		candidates.remove('run0')  # remove from original check
+		candidates.insert(0, 'run0')  # add as first else check in 3rd position
+	for su_cmd in candidates:
+		if shutil.which(su_cmd):
+			return su_cmd
+	raise RuntimeError('No privilege escalation tool found')
 
-def needs_sudo(cmd):
-    if os.geteuid() != 0:
-        cmd.insert(0, get_su_cmd())
-    return cmd
+def needs_elev(cmd: list[str]) -> list[str]:
+	if os.geteuid() != 0:
+		su_cmd = get_su_cmd()
+		if su_cmd == 'su':
+			# su requires special syntax: su -c 'command' root
+			return ['su', '-c', shlex.join(cmd), 'root']
+		cmd.insert(0, su_cmd)
+	return cmd
 
 def check_not_root(script_name: str) -> bool:
     """Return True and print an error if running as root, False otherwise."""
@@ -1035,7 +1040,7 @@ def install_official_packages(packages: Iterable[str], *, noconfirm: bool) -> No
     if noconfirm:
         cmd.append("--noconfirm")
     cmd.extend(pkgs)
-    needs_sudo(cmd)
+    needs_elev(cmd)
     print(f"Installing official packages: {' '.join(pkgs)}")
     run_command(cmd)
     invalidate_installed_cache()
@@ -1116,6 +1121,7 @@ def install_package(
     *,
     refresh: bool,
     noconfirm: bool,
+    force: bool = False,
     visited: set[str] | None = None,
     preinstalled_official: set[str] | None = None,
     repo_url: str | None = None,
@@ -1140,7 +1146,7 @@ def install_package(
     if repo_url:
         # Skip AUR RPC when using custom repo URL
         package_dir = ensure_clone(
-            package, dest_root, refresh=refresh, repo_url=repo_url, shallow=SHALLOW_CLONE
+            package, dest_root, refresh=refresh, force_reclone=force, repo_url=repo_url, shallow=SHALLOW_CLONE
         )
         # Validate PKGBUILD exists after clone
         if not (package_dir / "PKGBUILD").exists():
@@ -1175,7 +1181,7 @@ def install_package(
     else:
         if package_dir is None:
             package_dir = ensure_clone(
-                package, dest_root, refresh=refresh, repo_url=repo_url, shallow=SHALLOW_CLONE
+                package, dest_root, refresh=refresh, force_reclone=force, repo_url=repo_url, shallow=SHALLOW_CLONE
             )
             # Validate PKGBUILD exists after clone
             if not (package_dir / "PKGBUILD").exists():
@@ -1254,7 +1260,7 @@ def install_package(
 
     if package_dir is None:
         package_dir = ensure_clone(
-            package, dest_root, refresh=refresh, repo_url=repo_url, pkgbase=pkgbase, shallow=SHALLOW_CLONE
+            package, dest_root, refresh=refresh, force_reclone=force, repo_url=repo_url, pkgbase=pkgbase, shallow=SHALLOW_CLONE
         )
         # Validate PKGBUILD exists after clone (AUR RPC path)
         if not (package_dir / "PKGBUILD").exists():
@@ -1286,7 +1292,7 @@ def remove_package(
     if noconfirm:
         cmd.append("--noconfirm")
 
-    needs_sudo(cmd)
+    needs_elev(cmd)
 
     print(f"Removing package {style(package, BOLD)}")
     try:
@@ -1363,7 +1369,7 @@ def update_packages(
         if noconfirm:
             cmd.append("--noconfirm")
 
-        needs_sudo(cmd)
+        needs_elev(cmd)
 
         try:
             run_command(cmd)
@@ -2042,6 +2048,9 @@ def build_parser() -> argparse.ArgumentParser:
     install_parser.add_argument(
         "--noconfirm", action="store_true", help="Pass --noconfirm to pacman/makepkg"
     )
+    install_parser.add_argument(
+        "--force", action="store_true", help="Reclone even if directory exists"
+    )
     install_parser.add_argument("--repo-url", help="Clone from custom Git URL")
 
     remove_parser = subparsers.add_parser("uninstall", help="Remove an installed package")
@@ -2221,6 +2230,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 dest_root,
                 refresh=refresh,
                 noconfirm=args.noconfirm,
+                force=getattr(args, "force", False),
                 preinstalled_official=preinstalled_official,
                 repo_url=repo_url,
             )

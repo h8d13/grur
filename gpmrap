@@ -111,13 +111,13 @@ def sort_mirrors(
         cmd.extend(['--country', country])
     if save and not dry_run:
         cmd.extend(['--save', save])
-        g.needs_sudo(cmd)
+        g.needs_elev(cmd)
 
     g.run_command(cmd)
 
     if sync_after and not dry_run:
         sync_cmd = ['pacman', '-Sy']
-        g.needs_sudo(sync_cmd)
+        g.needs_elev(sync_cmd)
         g.run_command(sync_cmd)
 
 # Helpers
@@ -363,7 +363,7 @@ def install_package(package):
     op_a(f'installing {package}')
     cmd = ['pacman', '-S', package]
 
-    g.needs_sudo(cmd)
+    g.needs_elev(cmd)
     try:
         g.run_command(cmd, check=True)
         print(g.style(f'Sucessfully installed {package}', g.GREEN), file=sys.stderr)
@@ -379,7 +379,7 @@ def remove_package(package, dependencies=True):
     else:
         cmd = ['pacman', '-R', package]
 
-    g.needs_sudo(cmd)
+    g.needs_elev(cmd)
     try:
         g.run_command(cmd, check=True)
         print(g.style(f'Sucessfully uninstalled {package}', g.GREEN), file=sys.stderr)

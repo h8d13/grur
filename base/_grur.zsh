@@ -61,6 +61,7 @@ _grur_aur() {
                     _arguments \
                         $global_opts \
                         '--noconfirm[Pass --noconfirm to pacman/makepkg]' \
+                        '--force[Reclone even if directory exists]' \
                         '--repo-url[Clone from custom Git URL]:url:' \
                         '1:package:_grur_aur_packages'
                     ;;
