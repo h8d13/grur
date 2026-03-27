@@ -104,7 +104,6 @@ grur -a upgrade                   # Rebuild outdated foreign packages
 grur -a upgrade <pkg1> <pkg2>     # Upgrade specific packages only
 grur -a upgrade --devel           # Include *-git packages
 grur -a upgrade --global          # Sync system first, then AUR
-grur -a upgrade --refresh         # Force fresh pull of all packages
 ```
 
 ### Additional Options
