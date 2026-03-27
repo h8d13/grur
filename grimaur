@@ -1321,7 +1321,7 @@ def install_package(
                 if v
             ]
             if pkgnames:
-                save_custom_source(dest_root, pkgnames, repo_url)
+                save_custom_source(pkgnames, repo_url)
         except Exception:
             pass
 
@@ -1493,7 +1493,7 @@ def update_packages(
         if remote_version is None:
             remote_head = get_remote_head(package)
             if remote_head is None:
-                custom_url = load_custom_sources(dest_root).get(package)
+                custom_url = load_custom_sources().get(package)
                 if custom_url:
                     remote_head = get_remote_head_from_url(custom_url)
                     local_head = get_local_head(dest_root / package)
