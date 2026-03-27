@@ -25,6 +25,7 @@ from pathlib import Path
 file_path = f'{Path(__file__).parent}/grimaur'
 s = spec_from_loader('grimaur', SourceFileLoader('grimaur', file_path), origin=file_path)
 g = module_from_spec(s)
+g.__file__ = file_path
 sys.modules['grimaur'] = g
 s.loader.exec_module(g)
 
@@ -32,6 +33,7 @@ s.loader.exec_module(g)
 file_path_gpm = f'{Path(__file__).parent}/gpmrap'
 s_gpm = spec_from_loader('gpmwrap', SourceFileLoader('gpmwrap', file_path_gpm), origin=file_path_gpm)
 gpm = module_from_spec(s_gpm)
+gpm.__file__ = file_path_gpm
 sys.modules['gpmwrap'] = gpm
 s_gpm.loader.exec_module(gpm)
 

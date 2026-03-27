@@ -23,7 +23,7 @@ import argparse
 
 # Dirty python trick
 file_name = 'grimaur'
-file_path = f'{Path.cwd()}/{file_name}'
+file_path = f'{Path(__file__).parent}/{file_name}'
 
 s = spec_from_loader(
             file_name,
@@ -32,6 +32,7 @@ s = spec_from_loader(
         )
 
 g = module_from_spec(s)
+g.__file__ = file_path
 sys.modules['grimaur'] = g
 
 # Load and call from source file
