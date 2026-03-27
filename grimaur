@@ -207,6 +207,7 @@ class UpdateCandidate:
     target_version: str | None
     remote_head: str | None
     local_head: str | None
+    repo_url: str | None = None
 
 
 def aur_rpc_call(params: dict[str, Any]) -> dict[str, Any]:
@@ -462,6 +463,26 @@ def read_srcinfo(package_dir: Path) -> str:
     # Fallback to generating on the fly
     output = run_command(["makepkg", "--printsrcinfo"], cwd=package_dir, capture=True)
     return str(output)
+
+# helpers/store for externarl custom urls
+_CUSTOM_SOURCES_FILE = ".grur-ext-srcs"
+
+
+def load_custom_sources(dest_root: Path) -> dict[str, str]:
+    path = dest_root / _CUSTOM_SOURCES_FILE
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return {}
+
+
+def save_custom_source(dest_root: Path, pkgnames: list[str], url: str) -> None:
+    sources = load_custom_sources(dest_root)
+    for name in pkgnames:
+        sources[name] = url
+    (dest_root / _CUSTOM_SOURCES_FILE).write_text(json.dumps(sources, indent=2))
 
 
 _SRCINFO_KEYS = {
@@ -948,6 +969,18 @@ def get_remote_head(package: str) -> str | None:
     return None
 
 
+def get_remote_head_from_url(url: str) -> str | None:
+    try:
+        output = run_command(["git", "ls-remote", url, "HEAD"], capture=True)
+    except GrurError:
+        return None
+    for line in str(output).splitlines():
+        parts = line.split()
+        if parts:
+            return parts[0]
+    return None
+
+
 def get_installed_version(package: str) -> str | None:
     try:
         output = run_command(["pacman", "-Qi", package], capture=True)
@@ -1274,6 +1307,20 @@ def install_package(
 
     build_and_install(package_dir, noconfirm=noconfirm, refresh=refresh)
 
+    if repo_url:
+        try:
+            pkgnames = [
+                v.strip()
+                for line in read_srcinfo(package_dir).splitlines()
+                if (parts := line.strip().split("=", 1)) and parts[0].strip() == "pkgname"
+                for v in [parts[1].strip()]
+                if v
+            ]
+            if pkgnames:
+                save_custom_source(dest_root, pkgnames, repo_url)
+        except Exception:
+            pass
+
 
 def remove_package(
     package: str,
@@ -1442,7 +1489,24 @@ def update_packages(
         if remote_version is None:
             remote_head = get_remote_head(package)
             if remote_head is None:
-                missing.append(package)
+                custom_url = load_custom_sources(dest_root).get(package)
+                if custom_url:
+                    remote_head = get_remote_head_from_url(custom_url)
+                    local_head = get_local_head(dest_root / package)
+                    if remote_head and local_head and remote_head == local_head:
+                        continue
+                    pending_updates.append(
+                        UpdateCandidate(
+                            name=package,
+                            installed_version=installed_version,
+                            target_version=None,
+                            remote_head=remote_head,
+                            local_head=local_head,
+                            repo_url=custom_url,
+                        )
+                    )
+                else:
+                    missing.append(package)
                 continue
             package_dir = dest_root / package
             local_head = get_local_head(package_dir)
@@ -1484,6 +1548,8 @@ def update_packages(
             to_version = candidate.target_version
         elif candidate.remote_head:
             to_version = candidate.remote_head[:7]
+        elif candidate.repo_url:
+            to_version = "custom"
         else:
             to_version = "unknown"
         print(f"{index}) {candidate.name} {from_version} -> {to_version}")
@@ -1507,6 +1573,7 @@ def update_packages(
                 noconfirm=noconfirm,
                 visited=shared_visited,
                 preinstalled_official=shared_preinstalled_official,
+                repo_url=candidate.repo_url,
             )
         except GrurError as exc:
             print(f"error updating {candidate.name}: {exc}", file=sys.stderr)
