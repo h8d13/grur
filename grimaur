@@ -465,11 +465,13 @@ def read_srcinfo(package_dir: Path) -> str:
     return str(output)
 
 # helpers/store for externarl custom urls
-_CUSTOM_SOURCES_FILE = ".grur-ext-srcs"
+def _custom_sources_path() -> Path:
+    config_dir = Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser()
+    return config_dir / "grur" / "ext-srcs.json"
 
 
-def load_custom_sources(dest_root: Path) -> dict[str, str]:
-    path = dest_root / _CUSTOM_SOURCES_FILE
+def load_custom_sources() -> dict[str, str]:
+    path = _custom_sources_path()
     if not path.exists():
         return {}
     try:
@@ -478,11 +480,13 @@ def load_custom_sources(dest_root: Path) -> dict[str, str]:
         return {}
 
 
-def save_custom_source(dest_root: Path, pkgnames: list[str], url: str) -> None:
-    sources = load_custom_sources(dest_root)
+def save_custom_source(pkgnames: list[str], url: str) -> None:
+    sources = load_custom_sources()
     for name in pkgnames:
         sources[name] = url
-    (dest_root / _CUSTOM_SOURCES_FILE).write_text(json.dumps(sources, indent=2))
+    path = _custom_sources_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(sources, indent=2))
 
 
 _SRCINFO_KEYS = {
