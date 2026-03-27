@@ -3,16 +3,17 @@ if [ "$(id -u)" = "0" ]; then
     printf 'grur: must not be run as root\n' >&2
     exit 1
 fi
+GRUR_DIR="$(cd "$(dirname "$0")" && pwd)"
 case "$1" in
   -m|--menu)
     shift
-    exec python -B fzftui "$@"
+    exec python -B "$GRUR_DIR/base/src/fzftui" "$@"
     ;;
   -a|--aur)
     shift
-    exec python -B grimaur "$@"
+    exec python -B "$GRUR_DIR/base/src/grimaur" "$@"
     ;;
   *)
-    exec python -B gpmrap "$@"
+    exec python -B "$GRUR_DIR/base/src/gpmrap" "$@"
     ;;
 esac
