@@ -136,9 +136,6 @@ def is_vcs_package(name: str) -> bool:
     return any(name.endswith(suffix) for suffix in _VCS_SUFFIXES)
 
 
-def _in_gui_session():
-    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
-
 def get_su_cmd() -> str:
 	"""Get the privilege escalation command to use."""
 	# Check environment variable first
