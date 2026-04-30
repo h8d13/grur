@@ -17,7 +17,7 @@ grur -m       # Interactive TUI with fzf
 
 ### Dependencies
 ```bash
-sudo pacman -S --needed git base-devel pacman-contrib reflector fzf
+sudo ./grur -d
 ```
 
 ### Setup
