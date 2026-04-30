@@ -14,7 +14,34 @@ missing.
 
 ##  SPDX-License-Identifier: MIT */
 
-Requirements: git, makepkg, pacman, and (for installing official packages) sudo/root.
+Requirements:
+archlinux-keyring
+autoconf
+automake
+binutils
+bison
+debugedit
+fakeroot
+file
+findutils
+flex
+gawk
+gcc
+gettext
+grep
+groff
+gzip
+libtool
+m4
+make
+pacman
+patch
+pkgconf
+sed
+texinfo
+which
+
+And a PRIV_ESC binary of your choice configured in /etc/makepkg.conf
 """
 
 from __future__ import annotations
