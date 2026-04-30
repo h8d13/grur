@@ -17,13 +17,13 @@ grur -m       # Interactive TUI with fzf
 
 ### Dependencies
 ```bash
-sudo ./grur -d
 ```
 
 ### Setup
 ```bash
 git clone <url>
-cd grimaur-too
+cd grur
+sudo ./grur -d  or --deps # install runtime necessities
 ./grur --help
 ```
 
