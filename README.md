@@ -13,12 +13,6 @@ grur -a       # AUR operations (search, build, install AUR packages)
 grur -m       # Interactive TUI with fzf
 ```
 
-## Install
-
-### Dependencies
-```bash
-```
-
 ### Setup
 ```bash
 git clone <url>
