@@ -322,7 +322,7 @@ def run_command(
             capture_output=capture,
             env=env,
         )
-    except FileNotFoundError as exc:  # e.g. git not installed
+    except FileNotFoundError as exc:
         raise GrurError(f"Required command not found: {cmd[0]}") from exc
     except subprocess.CalledProcessError as exc:
         raise GrurError(
