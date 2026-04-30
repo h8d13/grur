@@ -449,7 +449,7 @@ def ensure_clone(
     if not (package_dir / "PKGBUILD").is_file():
         shutil.rmtree(package_dir, ignore_errors=True)
         raise GrurError(
-            f"Package '{package}' not found."
+            f"Package '{package}' not found. "
             "Check the package name and try again."
         )
 
@@ -464,7 +464,7 @@ def read_srcinfo(package_dir: Path) -> str:
     output = run_command(["makepkg", "--printsrcinfo"], cwd=package_dir, capture=True)
     return str(output)
 
-# helpers/store for externarl custom urls
+# helpers/store for external custom urls
 def _custom_sources_path() -> Path:
     config_dir = Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser()
     return config_dir / "grur" / "ext-srcs.json"
