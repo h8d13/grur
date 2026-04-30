@@ -446,6 +446,13 @@ def ensure_clone(
             ]
         )
 
+    if not (package_dir / "PKGBUILD").is_file():
+        shutil.rmtree(package_dir, ignore_errors=True)
+        raise GrurError(
+            f"Package '{package}' not found."
+            "Check the package name and try again."
+        )
+
     return package_dir
 
 
