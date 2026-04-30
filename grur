@@ -1,8 +1,43 @@
-#!/bin/sh
+#!/bin/bash
+
+depends=(
+  archlinux-keyring
+  autoconf
+  automake
+  binutils
+  bison
+  debugedit
+  fakeroot
+  file
+  findutils
+  flex
+  gawk
+  gcc
+  gettext
+  grep
+  groff
+  gzip
+  libtool
+  m4
+  make
+  pacman
+  patch
+  pkgconf
+  sed
+  texinfo
+  which
+)
+
+if [[ "$1" == "-d" || "$1" == "--deps" ]]; then
+  pacman -S --needed --noconfirm "${depends[@]}" || exit 1
+  exit 0
+fi
+
 if [ "$(id -u)" = "0" ]; then
     printf 'grur: must not be run as root\n' >&2
     exit 1
 fi
+
 GRUR_DIR="$(cd "$(dirname "$0")" && pwd)"
 case "$1" in
   -m|--menu)
