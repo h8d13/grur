@@ -145,13 +145,9 @@ def get_su_cmd() -> str:
 	if env_su := os.environ.get('GRIMAUR_SU'):
 		return env_su
 	# Check for common alternatives
-	# most popular takes precedence
-	# run0 inserted first when not in a tty
-	# makes for xdg pw prompts
+	# most popular takes precedence 
+    # last 2 as fallbacks present on most systems
 	candidates = ['sudo', 'doas', 'run0', 'su']
-	if _in_gui_session() and shutil.which('run0'):
-		candidates.remove('run0')  # remove from original check
-		candidates.insert(0, 'run0')  # add as first else check in 3rd position
 	for su_cmd in candidates:
 		if shutil.which(su_cmd):
 			return su_cmd
